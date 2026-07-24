@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.DS_Store
+*.local
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local AI/agent instructions — not part of the submission
+CLAUDE.md
+.claude/

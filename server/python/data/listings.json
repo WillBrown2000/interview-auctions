@@ -1,0 +1,98 @@
+[
+	{
+		"id": "a1b2c3d4-0001-4000-8000-ef1234567890",
+		"title": "2019 John Deere 8R 340 Tractor",
+		"description": "High-horsepower row-crop tractor with IVT transmission, 4WD, and 370 hp engine. Excellent condition with 1,850 hours. Fully equipped with precision ag technology.",
+		"category": "tractor",
+		"starting_price": 185000,
+		"current_bid": 185000,
+		"current_bidder": null,
+		"status": "active",
+		"ends_at": "2026-04-11T12:00:00.000Z",
+		"image_url": "https://placehold.co/400x300?text=2019+John+Deere+8R+340+Tractor"
+	},
+	{
+		"id": "a1b2c3d4-0002-4000-8000-ef1234567890",
+		"title": "2021 Case IH Axial-Flow 250 Combine",
+		"description": "Top-of-the-line combine harvester with Axial-Flow threshing technology. 473 hp engine, 620 bu grain tank, AFS Pro 700 display. Only 420 separator hours.",
+		"category": "combine",
+		"starting_price": 320000,
+		"current_bid": 320000,
+		"current_bidder": null,
+		"status": "active",
+		"ends_at": "2026-04-09T12:00:00.000Z",
+		"image_url": "https://placehold.co/400x300?text=2021+Case+IH+Axial-Flow+250+Combine"
+	},
+	{
+		"id": "a1b2c3d4-0003-4000-8000-ef1234567890",
+		"title": "2018 Kubota SVL75-2 Skid Steer",
+		"description": "Compact track loader with 74.3 hp Kubota diesel engine. High-flow hydraulics, enclosed cab with A/C, 2,690 lb rated operating capacity. 1,100 hours.",
+		"category": "implement",
+		"starting_price": 45000,
+		"current_bid": 45000,
+		"current_bidder": null,
+		"status": "active",
+		"ends_at": "2026-04-13T12:00:00.000Z",
+		"image_url": "https://placehold.co/400x300?text=2018+Kubota+SVL75-2+Skid+Steer"
+	},
+	{
+		"id": "a1b2c3d4-0004-4000-8000-ef1234567890",
+		"title": "2020 Kinze 1050 Grain Cart",
+		"description": "1,050 bushel grain cart with 21\" auger, scale system, and hydraulic spout rotation. Tandem axle, road lights, and grain level sight window. Excellent shape.",
+		"category": "implement",
+		"starting_price": 28000,
+		"current_bid": 28000,
+		"current_bidder": null,
+		"status": "active",
+		"ends_at": "2026-04-08T12:00:00.000Z",
+		"image_url": "https://placehold.co/400x300?text=2020+Kinze+1050+Grain+Cart"
+	},
+	{
+		"id": "a1b2c3d4-0005-4000-8000-ef1234567890",
+		"title": "Frontier RC2060 Rotary Cutter",
+		"description": "5-foot rotary cutter compatible with Cat 1 three-point hitch. Shear bolt slip clutch, 6-gauge deck, and 25 hp gearbox. Lightly used, great for pasture maintenance.",
+		"category": "attachment",
+		"starting_price": 4200,
+		"current_bid": 4200,
+		"current_bidder": null,
+		"status": "active",
+		"ends_at": "2026-04-15T12:00:00.000Z",
+		"image_url": "https://placehold.co/400x300?text=Frontier+RC2060+Rotary+Cutter"
+	},
+	{
+		"id": "a1b2c3d4-0006-4000-8000-ef1234567890",
+		"title": "2017 New Holland T6.180 Tractor",
+		"description": "Versatile utility tractor with 175 hp engine, Electro Command transmission, and front loader ready. 3,200 hours, well maintained with full service history.",
+		"category": "tractor",
+		"starting_price": 72000,
+		"current_bid": 72000,
+		"current_bidder": null,
+		"status": "active",
+		"ends_at": "2026-04-10T12:00:00.000Z",
+		"image_url": "https://placehold.co/400x300?text=2017+New+Holland+T6.180+Tractor"
+	},
+	{
+		"id": "a1b2c3d4-0007-4000-8000-ef1234567890",
+		"title": "2022 Landoll 7431 Field Cultivator",
+		"description": "31-foot field cultivator with walking tandems, 3-bar spike tooth harrow, and hydraulic fold. Minimal use — only 2 seasons. Ready to work.",
+		"category": "implement",
+		"starting_price": 38500,
+		"current_bid": 38500,
+		"current_bidder": null,
+		"status": "active",
+		"ends_at": "2026-04-12T12:00:00.000Z",
+		"image_url": "https://placehold.co/400x300?text=2022+Landoll+7431+Field+Cultivator"
+	},
+	{
+		"id": "a1b2c3d4-0008-4000-8000-ef1234567890",
+		"title": "2016 MacDon FD75 Draper Header",
+		"description": "40-foot draper header for combines. Double knife drive, adjustable skid shoes, and crop dividers. Compatible with most major combine brands via adapter.",
+		"category": "attachment",
+		"starting_price": 52000,
+		"current_bid": 52000,
+		"current_bidder": null,
+		"status": "closed",
+		"ends_at": "2026-04-05T12:00:00.000Z",
+		"image_url": "https://placehold.co/400x300?text=2016+MacDon+FD75+Draper+Header"
+	}
+]

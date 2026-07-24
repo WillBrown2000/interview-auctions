@@ -1,0 +1,418 @@
+/* ============================================================
+   Global reset & base
+   ============================================================ */
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+
+body {
+	font-family:
+		-apple-system,
+		BlinkMacSystemFont,
+		"Segoe UI",
+		Roboto,
+		sans-serif;
+	background: #f5f5f5;
+	color: #1a1a1a;
+	min-height: 100vh;
+}
+
+/* ============================================================
+   App shell
+   ============================================================ */
+.app {
+	display: flex;
+	flex-direction: column;
+	height: 100vh;
+	overflow: hidden;
+}
+
+.app-header {
+	background: #0d3d52;
+	color: #fff;
+	padding: 16px 24px;
+	flex-shrink: 0;
+}
+
+.app-header h1 {
+	font-size: 1.5rem;
+	font-weight: 700;
+	letter-spacing: -0.02em;
+}
+
+.app-header__subtitle {
+	font-size: 0.85rem;
+	color: #a8d8ea;
+	margin-top: 2px;
+}
+
+.app-body {
+	display: flex;
+	flex: 1;
+	overflow: hidden;
+}
+
+/* ============================================================
+   Panels
+   ============================================================ */
+.panel {
+	display: flex;
+	flex-direction: column;
+	overflow-y: auto;
+	padding: 20px;
+}
+
+.panel--left {
+	width: 40%;
+	border-right: 1px solid #ddd;
+	background: #fff;
+}
+
+.panel--right {
+	width: 60%;
+	background: #fafafa;
+}
+
+.panel__heading-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 16px;
+}
+
+.panel__heading {
+	font-size: 1rem;
+	font-weight: 600;
+	color: #555;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+}
+
+.panel__heading-action {
+	font-size: 0.8rem;
+	font-weight: 600;
+	color: #2596be;
+	background: none;
+	border: 1px solid #2596be;
+	border-radius: 5px;
+	padding: 3px 10px;
+	cursor: pointer;
+	transition: background 0.15s, color 0.15s;
+}
+
+.panel__heading-action:hover {
+	background: #2596be;
+	color: #fff;
+}
+
+/* ============================================================
+   Listing grid
+   ============================================================ */
+.listing-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+	gap: 12px;
+}
+
+/* ============================================================
+   Listing card
+   ============================================================ */
+.listing-card {
+	border: 2px solid #e5e5e5;
+	border-radius: 8px;
+	overflow: hidden;
+	cursor: pointer;
+	background: #fff;
+	transition:
+		border-color 0.15s,
+		box-shadow 0.15s;
+}
+
+.listing-card:hover {
+	border-color: #2596be;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.listing-card--selected {
+	border-color: #0d3d52;
+	box-shadow: 0 0 0 2px #0d3d5240;
+}
+
+.listing-card--closed {
+	opacity: 0.55;
+}
+
+.listing-card__image {
+	width: 100%;
+	height: 120px;
+	object-fit: cover;
+	display: block;
+}
+
+.listing-card__body {
+	padding: 10px 12px 12px;
+}
+
+.listing-card__title {
+	font-size: 0.85rem;
+	font-weight: 600;
+	line-height: 1.3;
+	margin: 6px 0 4px;
+	color: #1a1a1a;
+}
+
+.listing-card__bid {
+	font-size: 0.8rem;
+	color: #444;
+	margin-bottom: 4px;
+}
+
+.listing-card__time {
+	font-size: 0.75rem;
+	color: #2596be;
+	font-weight: 500;
+}
+
+.listing-card__time--ended {
+	color: #999;
+}
+
+/* ============================================================
+   Category badges
+   ============================================================ */
+.badge {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 12px;
+	font-size: 0.7rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+
+.badge--tractor {
+	background: #d4edda;
+	color: #155724;
+}
+
+.badge--combine {
+	background: #fff3cd;
+	color: #856404;
+}
+
+.badge--implement {
+	background: #cce5ff;
+	color: #004085;
+}
+
+.badge--attachment {
+	background: #e2e3e5;
+	color: #383d41;
+}
+
+/* ============================================================
+   Status badge
+   ============================================================ */
+.status-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 12px;
+	font-size: 0.7rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	margin-left: 6px;
+}
+
+.status-badge--active {
+	background: #d4edda;
+	color: #155724;
+}
+
+.status-badge--closed {
+	background: #f8d7da;
+	color: #721c24;
+}
+
+.status-badge--pending {
+	background: #fff3cd;
+	color: #856404;
+}
+
+/* ============================================================
+   Listing detail
+   ============================================================ */
+.listing-detail {
+	max-width: 640px;
+}
+
+.listing-detail__image {
+	width: 100%;
+	max-height: 240px;
+	object-fit: cover;
+	border-radius: 8px;
+	display: block;
+	margin-bottom: 16px;
+}
+
+.listing-detail__header {
+	margin-bottom: 8px;
+}
+
+.listing-detail__title {
+	font-size: 1.4rem;
+	font-weight: 700;
+	line-height: 1.3;
+	margin-bottom: 10px;
+	color: #1a1a1a;
+}
+
+.listing-detail__description {
+	font-size: 0.9rem;
+	color: #555;
+	line-height: 1.6;
+	margin-bottom: 20px;
+}
+
+.listing-detail__meta {
+	border: 1px solid #e5e5e5;
+	border-radius: 8px;
+	overflow: hidden;
+	margin-bottom: 24px;
+}
+
+.meta-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 10px 16px;
+	border-bottom: 1px solid #e5e5e5;
+}
+
+.meta-row:last-child {
+	border-bottom: none;
+}
+
+.meta-label {
+	font-size: 0.8rem;
+	color: #888;
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.meta-value {
+	font-size: 0.95rem;
+	color: #1a1a1a;
+	font-weight: 500;
+}
+
+.meta-value--highlight {
+	font-size: 1.05rem;
+	font-weight: 700;
+	color: #0d3d52;
+}
+
+/* ============================================================
+   Bid form
+   ============================================================ */
+.bid-form {
+	background: #fff;
+	border: 1px solid #e5e5e5;
+	border-radius: 8px;
+	padding: 20px;
+}
+
+.bid-form__title {
+	font-size: 1rem;
+	font-weight: 600;
+	margin-bottom: 14px;
+	color: #1a1a1a;
+}
+
+.bid-form__error {
+	background: #f8d7da;
+	color: #721c24;
+	border: 1px solid #f5c6cb;
+	border-radius: 6px;
+	padding: 8px 12px;
+	font-size: 0.85rem;
+	margin-bottom: 12px;
+}
+
+.bid-form__field {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin-bottom: 12px;
+}
+
+.bid-form__field label {
+	font-size: 0.8rem;
+	font-weight: 600;
+	color: #555;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.bid-form__field input {
+	padding: 8px 12px;
+	border: 1px solid #ccc;
+	border-radius: 6px;
+	font-size: 0.95rem;
+	outline: none;
+	transition: border-color 0.15s;
+}
+
+.bid-form__field input:focus {
+	border-color: #2596be;
+	box-shadow: 0 0 0 2px #2596be30;
+}
+
+.bid-form__submit {
+	width: 100%;
+	padding: 10px;
+	background: #0d3d52;
+	color: #fff;
+	border: none;
+	border-radius: 6px;
+	font-size: 0.95rem;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background 0.15s;
+}
+
+.bid-form__submit:hover:not(:disabled) {
+	background: #1a7fa8;
+}
+
+.bid-form__submit:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+/* ============================================================
+   States
+   ============================================================ */
+.state-message {
+	font-size: 0.9rem;
+	color: #777;
+	padding: 16px 0;
+}
+
+.state-message--error {
+	color: #721c24;
+}
+
+.empty-state {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	color: #aaa;
+	font-size: 1rem;
+}
