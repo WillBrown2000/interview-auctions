@@ -535,3 +535,40 @@ body {
 	color: #999;
 	font-size: 0.75rem;
 }
+
+/* ============================================================
+   Auction result — replaces the bid form once an auction is over
+   ============================================================ */
+.auction-result {
+	margin-top: 20px;
+	padding: 16px;
+	border: 1px solid #d6e9f2;
+	border-left: 4px solid #2596be;
+	border-radius: 6px;
+	background: #f4fafd;
+}
+
+.auction-result--unsold {
+	border-color: #e5e5e5;
+	border-left-color: #b0b0b0;
+	background: #fafafa;
+}
+
+.auction-result__heading {
+	font-size: 0.75rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: #777;
+	margin-bottom: 6px;
+}
+
+.auction-result__detail {
+	font-size: 0.95rem;
+	color: #1a1a1a;
+	line-height: 1.5;
+}
+
+.auction-result--unsold .auction-result__detail {
+	color: #777;
+}
