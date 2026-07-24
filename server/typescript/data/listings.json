@@ -8,7 +8,7 @@
 		"currentBid": 185000,
 		"currentBidder": null,
 		"status": "active",
-		"endsAt": "2026-04-11T12:00:00.000Z",
+		"endsInHours": 72,
 		"imageUrl": "https://placehold.co/400x300?text=2019+John+Deere+8R+340+Tractor"
 	},
 	{
@@ -20,7 +20,7 @@
 		"currentBid": 320000,
 		"currentBidder": null,
 		"status": "active",
-		"endsAt": "2026-04-09T12:00:00.000Z",
+		"endsInHours": 26,
 		"imageUrl": "https://placehold.co/400x300?text=2021+Case+IH+Axial-Flow+250+Combine"
 	},
 	{
@@ -32,7 +32,7 @@
 		"currentBid": 45000,
 		"currentBidder": null,
 		"status": "active",
-		"endsAt": "2026-04-13T12:00:00.000Z",
+		"endsInHours": 5,
 		"imageUrl": "https://placehold.co/400x300?text=2018+Kubota+SVL75-2+Skid+Steer"
 	},
 	{
@@ -44,7 +44,7 @@
 		"currentBid": 28000,
 		"currentBidder": null,
 		"status": "active",
-		"endsAt": "2026-04-08T12:00:00.000Z",
+		"endsInHours": 0.75,
 		"imageUrl": "https://placehold.co/400x300?text=2020+Kinze+1050+Grain+Cart"
 	},
 	{
@@ -56,7 +56,7 @@
 		"currentBid": 4200,
 		"currentBidder": null,
 		"status": "active",
-		"endsAt": "2026-04-15T12:00:00.000Z",
+		"endsInHours": 0.0125,
 		"imageUrl": "https://placehold.co/400x300?text=Frontier+RC2060+Rotary+Cutter"
 	},
 	{
@@ -68,19 +68,19 @@
 		"currentBid": 72000,
 		"currentBidder": null,
 		"status": "active",
-		"endsAt": "2026-04-10T12:00:00.000Z",
+		"endsInHours": 168,
 		"imageUrl": "https://placehold.co/400x300?text=2017+New+Holland+T6.180+Tractor"
 	},
 	{
 		"id": "a1b2c3d4-0007-4000-8000-ef1234567890",
 		"title": "2022 Landoll 7431 Field Cultivator",
-		"description": "31-foot field cultivator with walking tandems, 3-bar spike tooth harrow, and hydraulic fold. Minimal use — only 2 seasons. Ready to work.",
+		"description": "31-foot field cultivator with walking tandems, 3-bar spike tooth harrow, and hydraulic fold. Minimal use \u2014 only 2 seasons. Ready to work.",
 		"category": "implement",
 		"startingPrice": 38500,
 		"currentBid": 38500,
 		"currentBidder": null,
 		"status": "active",
-		"endsAt": "2026-04-12T12:00:00.000Z",
+		"endsInHours": -2,
 		"imageUrl": "https://placehold.co/400x300?text=2022+Landoll+7431+Field+Cultivator"
 	},
 	{
@@ -92,7 +92,7 @@
 		"currentBid": 52000,
 		"currentBidder": null,
 		"status": "closed",
-		"endsAt": "2026-04-05T12:00:00.000Z",
+		"endsInHours": -48,
 		"imageUrl": "https://placehold.co/400x300?text=2016+MacDon+FD75+Draper+Header"
 	}
 ]

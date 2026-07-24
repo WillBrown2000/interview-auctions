@@ -20,13 +20,35 @@ export function api() {
 	return supertest(createApp(initDatabase(":memory:")));
 }
 
-/** The seed on disk, so tests assert against the data rather than restating it. */
-export const seed: Listing[] = JSON.parse(
+/**
+ * The seed on disk, so tests assert against the data rather than restating it.
+ *
+ * The fixture carries endsInHours (an offset from seed time) rather than an
+ * absolute endsAt, so the actual timestamp is only known once seeded.
+ */
+export type SeedListing = Omit<Listing, "endsAt"> & { endsInHours: number };
+
+export const seed: SeedListing[] = JSON.parse(
 	readFileSync(join(__dirname, "..", "data", "listings.json"), "utf-8"),
 );
 
-export const activeListing = seed.find((l) => l.status === "active") as Listing;
-export const closedListing = seed.find((l) => l.status === "closed") as Listing;
+/** Open for bidding: active, and comfortably in the future. */
+export const activeListing = seed.find(
+	(l) => l.status === "active" && l.endsInHours > 1,
+) as SeedListing;
+
+/**
+ * Past its end time but still flagged active — an auction nothing has swept
+ * up yet. The case where status alone is not enough to decide if a bid is
+ * allowed.
+ */
+export const expiredListing = seed.find(
+	(l) => l.status === "active" && l.endsInHours < 0,
+) as SeedListing;
+
+export const closedListing = seed.find(
+	(l) => l.status === "closed",
+) as SeedListing;
 
 export const MISSING_ID = "00000000-0000-4000-8000-000000000000";
 

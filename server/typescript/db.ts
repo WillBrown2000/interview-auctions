@@ -93,7 +93,16 @@ interface SeedListing {
 	currentBid: number;
 	currentBidder: string | null;
 	status: string;
-	endsAt: string;
+	/**
+	 * Hours from seed time until the auction closes. Negative means it has
+	 * already ended.
+	 *
+	 * The fixture stores an offset rather than an absolute timestamp because
+	 * absolute dates rot: the original seed shipped with every auction ending
+	 * in April, so by the time anyone ran it, every listing had closed and a
+	 * countdown had nothing to count. An offset is correct whenever it's run.
+	 */
+	endsInHours: number;
 	imageUrl: string;
 }
 
@@ -128,8 +137,15 @@ export function seedIfEmpty(
 		)
 	`);
 
+	const now = Date.now();
+
 	db.transaction((rows: SeedListing[]) => {
-		for (const row of rows) insert.run(row);
+		for (const { endsInHours, ...row } of rows) {
+			insert.run({
+				...row,
+				endsAt: new Date(now + endsInHours * 60 * 60 * 1000).toISOString(),
+			});
+		}
 	})(seed);
 
 	log(`seeded ${seed.length} listings`);
