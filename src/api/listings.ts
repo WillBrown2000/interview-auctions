@@ -1,8 +1,30 @@
-import type { Listing } from "../types";
+import type { Bid, Listing, ListingQuery, Paginated } from "../types";
 
-export async function getListings(): Promise<Listing[]> {
-	const res = await fetch("/api/listings");
-	if (!res.ok) throw new Error("Failed to fetch listings");
+async function errorFrom(res: Response, fallback: string): Promise<Error> {
+	const body = await res.json().catch(() => ({}));
+	return new Error(body.error || body.detail || fallback);
+}
+
+export async function getListings(
+	query: ListingQuery = {},
+): Promise<Paginated<Listing>> {
+	const params = new URLSearchParams();
+	for (const [key, value] of Object.entries(query)) {
+		// Empty string is how the filter selects spell "no filter". Sending it
+		// through would make the server reject the request.
+		if (value !== undefined && value !== "") {
+			params.set(key, String(value));
+		}
+	}
+
+	const res = await fetch(`/api/listings?${params}`);
+	if (!res.ok) throw await errorFrom(res, "Failed to fetch listings");
+	return res.json();
+}
+
+export async function getBidHistory(listingId: string): Promise<Bid[]> {
+	const res = await fetch(`/api/listings/${listingId}/bids`);
+	if (!res.ok) throw await errorFrom(res, "Failed to fetch bid history");
 	return res.json();
 }
 
