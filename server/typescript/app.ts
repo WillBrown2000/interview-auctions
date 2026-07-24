@@ -325,6 +325,18 @@ export function createApp(db: Db) {
 				throw new BadRequest("This listing is not currently active");
 			}
 
+			// Status is a stored field that something has to write; ends_at is
+			// the actual contract with the bidder. Between an auction ending and
+			// anything noticing, a listing sits marked active with its end time
+			// in the past -- so the timestamp has to be checked directly rather
+			// than trusting status to have been swept.
+			//
+			// Read inside the transaction, alongside the bid comparison, so a
+			// bid can't slip past an expiry that lands mid-request.
+			if (Date.parse(row.ends_at) <= Date.now()) {
+				throw new BadRequest("This auction has ended");
+			}
+
 			if (amount <= row.current_bid) {
 				throw new BadRequest(
 					`Bid must be greater than the current bid of $${row.current_bid.toLocaleString()}`,
