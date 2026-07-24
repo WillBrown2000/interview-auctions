@@ -28,6 +28,14 @@ interface Listing {
 	imageUrl: string;
 }
 
+interface Bid {
+	id: string;
+	listingId: string;
+	bidder: string;
+	amount: number;
+	placedAt: string;
+}
+
 interface BidRequest {
 	bidder: string;
 	amount: number;
@@ -44,6 +52,40 @@ interface CreateListingRequest {
 const listings: Listing[] = JSON.parse(
 	readFileSync(join(__dirname, "data", "listings.json"), "utf-8"),
 );
+
+// Bids indexed by listing id. Every read of this data is "the bids for one
+// listing", so indexing by that key keeps reads O(bids on the listing) instead
+// of scanning a flat table. This stands in for the (listing_id, placed_at)
+// index you'd put on a bids table in a real database.
+//
+// Each array is kept in insertion order — oldest first — and reversed at read
+// time. Appending is O(1); reversing is O(n) but only touches the one listing
+// being read, and the copy is needed anyway so callers can't mutate the store.
+const bidsByListing = new Map<string, Bid[]>();
+
+function recordBid(listingId: string, bidder: string, amount: number): Bid {
+	const bid: Bid = {
+		id: randomUUID(),
+		listingId,
+		bidder,
+		amount,
+		placedAt: new Date().toISOString(),
+	};
+
+	const existing = bidsByListing.get(listingId);
+	if (existing) {
+		existing.push(bid);
+	} else {
+		bidsByListing.set(listingId, [bid]);
+	}
+
+	return bid;
+}
+
+// Newest first. Returns a copy, so callers can't mutate the stored history.
+function bidHistoryFor(listingId: string): Bid[] {
+	return [...(bidsByListing.get(listingId) ?? [])].reverse();
+}
 
 // ============================================================
 // App
@@ -128,10 +170,28 @@ app.post("/api/listings/:id/bids", (req: Request, res: Response) => {
 		});
 	}
 
+	const bidder = bid.bidder.trim();
+
 	listing.currentBid = bid.amount;
-	listing.currentBidder = bid.bidder.trim();
+	listing.currentBidder = bidder;
+	recordBid(listing.id, bidder, bid.amount);
 
 	return res.status(201).json(listing);
+});
+
+// GET /api/listings/:id/bids — bid history, newest first.
+//
+// A listing with no bids and a listing that doesn't exist are different
+// answers to different questions, so they get different statuses: an unknown
+// id is 404, while a real listing that nobody has bid on is a successful
+// request that happens to return an empty collection.
+app.get("/api/listings/:id/bids", (req: Request, res: Response) => {
+	const listing = listings.find((l) => l.id === req.params.id);
+	if (!listing) {
+		return res.status(404).json({ error: "Listing not found" });
+	}
+
+	return res.json(bidHistoryFor(listing.id));
 });
 
 app.listen(PORT, () => {
