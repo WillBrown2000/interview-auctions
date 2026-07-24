@@ -5,7 +5,8 @@
 	"scripts": {
 		"dev": "tsx --watch index.ts",
 		"test": "vitest run",
-		"test:watch": "vitest"
+		"test:watch": "vitest",
+		"seed:demo": "tsx scripts/seed-demo.ts"
 	},
 	"dependencies": {
 		"better-sqlite3": "^12.11.1",

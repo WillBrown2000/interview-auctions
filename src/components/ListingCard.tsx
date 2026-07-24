@@ -1,3 +1,4 @@
+import { hasEnded } from "../auction";
 import type { Listing } from "../types";
 
 interface Props {
@@ -6,10 +7,9 @@ interface Props {
 	onClick: () => void;
 }
 
-function timeRemaining(endsAt: string, status: string): string {
-	if (status === "closed") return "Ended";
-	const diff = new Date(endsAt).getTime() - Date.now();
-	if (diff <= 0) return "Ended";
+function timeRemaining(listing: Listing): string {
+	if (hasEnded(listing)) return "Ended";
+	const diff = new Date(listing.endsAt).getTime() - Date.now();
 	const days = Math.floor(diff / 86_400_000);
 	const hours = Math.floor((diff % 86_400_000) / 3_600_000);
 	if (days > 0) return `${days} day${days === 1 ? "" : "s"} left`;
@@ -18,7 +18,10 @@ function timeRemaining(endsAt: string, status: string): string {
 }
 
 export default function ListingCard({ listing, isSelected, onClick }: Props) {
-	const closed = listing.status === "closed";
+	// Was `listing.status === "closed"`, which only greys out lots the server
+	// has swept. An auction past its end time but still stored as active read
+	// "Ended" in the corner while keeping the styling of a live lot.
+	const closed = hasEnded(listing);
 
 	return (
 		<div
@@ -44,7 +47,7 @@ export default function ListingCard({ listing, isSelected, onClick }: Props) {
 				<div
 					className={`listing-card__time ${closed ? "listing-card__time--ended" : ""}`}
 				>
-					{timeRemaining(listing.endsAt, listing.status)}
+					{timeRemaining(listing)}
 				</div>
 			</div>
 		</div>
