@@ -15,7 +15,12 @@ export default function BidForm({ listing, onBidSuccess }: Props) {
 		e.preventDefault();
 		setError(null);
 
-		const data = new FormData(e.currentTarget);
+		// Captured before the first await: React sets currentTarget back to null
+		// once the handler's synchronous phase ends, so reading it after the
+		// awaited fetch below would throw.
+		const form = e.currentTarget;
+
+		const data = new FormData(form);
 		const bidder = (data.get("bidder") as string).trim();
 		const numAmount = parseFloat(data.get("amount") as string);
 
@@ -32,7 +37,7 @@ export default function BidForm({ listing, onBidSuccess }: Props) {
 		try {
 			const updated = await placeBid(listing.id, bidder, numAmount);
 			onBidSuccess(updated);
-			e.currentTarget.reset();
+			form.reset();
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Failed to place bid");
 		} finally {

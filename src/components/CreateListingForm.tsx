@@ -14,7 +14,10 @@ export default function CreateListingForm({ onSuccess }: Props) {
 		e.preventDefault();
 		setError(null);
 
-		const data = new FormData(e.currentTarget);
+		// See BidForm — currentTarget is null after the await.
+		const form = e.currentTarget;
+
+		const data = new FormData(form);
 		const title = (data.get("title") as string).trim();
 
 		if (!title) {
@@ -26,7 +29,7 @@ export default function CreateListingForm({ onSuccess }: Props) {
 		try {
 			const listing = await createListing({ title });
 			onSuccess(listing);
-			e.currentTarget.reset();
+			form.reset();
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Failed to create listing");
 		} finally {

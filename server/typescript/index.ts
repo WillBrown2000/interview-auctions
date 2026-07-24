@@ -122,7 +122,7 @@ app.post("/api/listings/:id/bids", (req: Request, res: Response) => {
 			.json({ error: "Bid amount must be a positive number" });
 	}
 
-	if (bid.amount >= listing.currentBid) {
+	if (bid.amount <= listing.currentBid) {
 		return res.status(400).json({
 			error: `Bid must be greater than the current bid of $${listing.currentBid.toLocaleString()}`,
 		});
