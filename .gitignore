@@ -10,3 +10,8 @@ venv/
 # Local AI/agent instructions — not part of the submission
 CLAUDE.md
 .claude/
+
+# SQLite database + WAL sidecars — rebuilt from migrations + seed on boot
+data/*.db
+data/*.db-wal
+data/*.db-shm

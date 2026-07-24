@@ -3,18 +3,21 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import supertest from "supertest";
 import { type Listing, createApp } from "../app";
+import { initDatabase } from "../db";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /**
- * A fresh app, and therefore a fresh copy of the seed data, per call.
+ * A fresh app on a fresh in-memory database, migrated and seeded, per call.
  *
- * Every test gets its own store. Bids placed in one test can't be seen by
- * another, so the suite has no ordering dependency and individual tests can be
- * run in isolation.
+ * ":memory:" gives every test its own private database that never touches
+ * disk. Bids written by one test are invisible to the next, so the suite has
+ * no ordering dependency and any test can be run alone. It also means the
+ * tests exercise the real migrations -- if a migration is broken, the suite
+ * fails rather than testing against a schema built some other way.
  */
 export function api() {
-	return supertest(createApp());
+	return supertest(createApp(initDatabase(":memory:")));
 }
 
 /** The seed on disk, so tests assert against the data rather than restating it. */
