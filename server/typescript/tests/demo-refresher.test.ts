@@ -208,6 +208,53 @@ describe("demo refresher", () => {
 		}
 	});
 
+	it("recreates its listing if something deletes it", () => {
+		// `npm run seed:demo` clears the listings table. The refresher used to
+		// keep an id it assumed was there forever, read undefined off the next
+		// query, and throw inside its own interval -- which is unhandled and
+		// takes the process down.
+		const db = initDatabase(":memory:");
+		const channel = new RecordingChannel();
+		const refresher = startDemoRefresher(db, channel);
+
+		try {
+			db.exec("DELETE FROM bids");
+			db.exec("DELETE FROM listings");
+
+			expect(() => refresher.refresh()).not.toThrow();
+
+			const row = listingRow(db, refresher.listingId);
+			expect(row.title).toBe(DEMO_REFRESHER_TITLE);
+			expect(row.status).toBe("active");
+		} finally {
+			refresher.stop();
+			db.close();
+		}
+	});
+
+	it("keeps the server alive when a cycle fails", () => {
+		// Whatever goes wrong in a development fixture, the answer is a log
+		// line and a server that carries on serving auctions.
+		vi.useFakeTimers();
+		const db = initDatabase(":memory:");
+		const channel = new RecordingChannel();
+		const refresher = startDemoRefresher(db, channel, {
+			liveMs: 1_000,
+			endedMs: 500,
+		});
+
+		try {
+			// Closing the database makes every statement throw from inside the
+			// timer callback.
+			db.close();
+
+			expect(() => vi.advanceTimersByTime(2_000)).not.toThrow();
+		} finally {
+			refresher.stop();
+			vi.useRealTimers();
+		}
+	});
+
 	it("does not disturb the rest of the fixture", () => {
 		const db = initDatabase(":memory:");
 		const channel = new RecordingChannel();
