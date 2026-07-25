@@ -28,6 +28,11 @@ export interface ListingQuery {
 	category?: Category | "";
 	status?: Status | "";
 	q?: string;
+	// Strings because they come from text inputs, where "" means "no bound".
+	// getListings drops empty values rather than sending them, since the server
+	// rejects a malformed number instead of ignoring it.
+	minPrice?: number | string;
+	maxPrice?: number | string;
 	sort?: "endsAt" | "currentBid" | "title";
 	order?: "asc" | "desc";
 }

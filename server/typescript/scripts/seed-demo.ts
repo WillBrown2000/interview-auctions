@@ -321,6 +321,104 @@ function generate(count: number, now: number): GeneratedListing[] {
 }
 
 // ============================================================
+// Showcase listings
+// ============================================================
+
+/**
+ * Fixed lots that always land in a known state, one per countdown band.
+ *
+ * The randomly generated set will usually contain something in each band, but
+ * "usually" is no good for checking the UI. These guarantee that after every
+ * reseed there is a listing closing in 45 seconds, one in 5 minutes, one in an
+ * hour, and so on — so the seconds format, the urgent styling, and the live
+ * flip to Ended are all reachable without waiting or hunting.
+ *
+ * They sort to the front under the default ordering (soonest first), so
+ * they're on page one.
+ */
+const SHOWCASE: {
+	label: string;
+	endsInMinutes: number;
+	status: "active" | "closed";
+	bids: number;
+}[] = [
+	{
+		label: "ENDED — swept, sold",
+		endsInMinutes: -2 * 60,
+		status: "closed",
+		bids: 5,
+	},
+	{
+		label: "ENDED — swept, no bids",
+		endsInMinutes: -90,
+		status: "closed",
+		bids: 0,
+	},
+	// Past its end time but still stored active: the window between an auction
+	// ending and a sweep noticing. The UI has to derive this, not trust status.
+	{
+		label: "ENDED — not yet swept",
+		endsInMinutes: -20,
+		status: "active",
+		bids: 3,
+	},
+	// Expires while you watch it — the live flip to Ended, no reload.
+	{ label: "45 seconds", endsInMinutes: 0.75, status: "active", bids: 7 },
+	{ label: "5 minutes", endsInMinutes: 5, status: "active", bids: 4 },
+	{ label: "next hour", endsInMinutes: 58, status: "active", bids: 9 },
+	{ label: "5 hours", endsInMinutes: 5 * 60, status: "active", bids: 2 },
+	{ label: "next day", endsInMinutes: 23 * 60, status: "active", bids: 6 },
+	{ label: "3 days", endsInMinutes: 3 * 24 * 60, status: "active", bids: 0 },
+];
+
+function showcase(now: number): GeneratedListing[] {
+	return SHOWCASE.map(({ label, endsInMinutes, status, bids: bidCount }) => {
+		const category = pick(CATEGORIES);
+		const { makes, models } = EQUIPMENT[category];
+		const [lo, hi] = BASE_PRICE[category];
+		const startingPrice = Math.round(between(lo, hi) / 500) * 500;
+		const endsAt = new Date(now + endsInMinutes * 60_000).toISOString();
+
+		const listing: GeneratedListing = {
+			id: randomUUID(),
+			// Prefixed so they're findable by searching "demo" in the UI.
+			title: `[DEMO ${label}] ${pick(makes)} ${pick(models)}`,
+			description: `Fixture listing for the "${label}" countdown band. ${pick(CONDITIONS)}`,
+			category,
+			startingPrice,
+			currentBid: startingPrice,
+			currentBidder: null,
+			status,
+			endsAt,
+			imageUrl: `https://placehold.co/400x300?text=${encodeURIComponent(label)}`,
+			bids: [],
+		};
+
+		let amount = startingPrice;
+		let placedAt = now + (endsInMinutes - 600) * 60_000;
+
+		for (let b = 0; b < bidCount; b++) {
+			amount = Math.round((amount * between(1.01, 1.09)) / 100) * 100;
+			placedAt += between(10, 90) * 60_000;
+			const bidder = `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`;
+
+			listing.bids.push({
+				id: randomUUID(),
+				listingId: listing.id,
+				bidder,
+				amount,
+				placedAt: new Date(placedAt).toISOString(),
+			});
+
+			listing.currentBid = amount;
+			listing.currentBidder = bidder;
+		}
+
+		return listing;
+	});
+}
+
+// ============================================================
 // Write
 // ============================================================
 
@@ -373,7 +471,9 @@ function main(): void {
 	db.exec("DELETE FROM listings");
 	console.log(`cleared ${existing.n} existing listings`);
 
-	const listings = generate(count, Date.now());
+	const now = Date.now();
+	const fixed = showcase(now);
+	const listings = [...fixed, ...generate(count - fixed.length, now)];
 	insertAll(db, listings);
 
 	const bidTotal = listings.reduce((sum, l) => sum + l.bids.length, 0);
@@ -384,6 +484,7 @@ function main(): void {
 		[
 			`seeded ${listings.length} listings (${active} active, ${withoutBids} with no bids)`,
 			`seeded ${bidTotal} bids`,
+			`${fixed.length} fixed [DEMO] listings, one per countdown band`,
 			`${Math.ceil(listings.length / 6)} pages at the UI's page size of 6`,
 		].join("\n"),
 	);

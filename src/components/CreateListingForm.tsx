@@ -51,11 +51,7 @@ export default function CreateListingForm({ onSuccess }: Props) {
 					disabled={submitting}
 				/>
 			</div>
-			<button
-				type="submit"
-				className="bid-form__submit"
-				disabled={submitting}
-			>
+			<button type="submit" className="bid-form__submit" disabled={submitting}>
 				{submitting ? "Creating…" : "Create Listing"}
 			</button>
 		</form>

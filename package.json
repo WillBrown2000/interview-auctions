@@ -9,7 +9,9 @@
 		"preview": "vite preview",
 		"check": "biome check .",
 		"check:fix": "biome check --write .",
-		"format": "biome format --write ."
+		"format": "biome format --write .",
+		"test": "vitest run",
+		"test:watch": "vitest"
 	},
 	"dependencies": {
 		"react": "^19.2.0",
@@ -17,10 +19,16 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.6",
+		"@testing-library/jest-dom": "^6.9.1",
+		"@testing-library/react": "^16.3.2",
+		"@testing-library/user-event": "^14.6.1",
 		"@types/react": "^19.2.7",
 		"@types/react-dom": "^19.2.3",
 		"@vitejs/plugin-react": "^5.1.1",
+		"@vitest/coverage-v8": "^4.1.10",
+		"jsdom": "^29.1.1",
 		"typescript": "~5.9.3",
-		"vite": "^7.3.1"
+		"vite": "^7.3.1",
+		"vitest": "^4.1.10"
 	}
 }

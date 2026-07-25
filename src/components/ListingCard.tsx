@@ -1,5 +1,7 @@
 import { hasEnded } from "../auction";
 import type { Listing } from "../types";
+import { useNow } from "../useNow";
+import Countdown from "./Countdown";
 
 interface Props {
 	listing: Listing;
@@ -7,21 +9,15 @@ interface Props {
 	onClick: () => void;
 }
 
-function timeRemaining(listing: Listing): string {
-	if (hasEnded(listing)) return "Ended";
-	const diff = new Date(listing.endsAt).getTime() - Date.now();
-	const days = Math.floor(diff / 86_400_000);
-	const hours = Math.floor((diff % 86_400_000) / 3_600_000);
-	if (days > 0) return `${days} day${days === 1 ? "" : "s"} left`;
-	if (hours > 0) return `${hours} hour${hours === 1 ? "" : "s"} left`;
-	return "Less than an hour left";
-}
-
 export default function ListingCard({ listing, isSelected, onClick }: Props) {
+	// Reading the shared clock rather than Date.now() means the card restyles
+	// itself the moment the auction ends, without a reload and without its own
+	// timer.
+	//
 	// Was `listing.status === "closed"`, which only greys out lots the server
 	// has swept. An auction past its end time but still stored as active read
 	// "Ended" in the corner while keeping the styling of a live lot.
-	const closed = hasEnded(listing);
+	const closed = hasEnded(listing, useNow());
 
 	return (
 		<div
@@ -47,7 +43,7 @@ export default function ListingCard({ listing, isSelected, onClick }: Props) {
 				<div
 					className={`listing-card__time ${closed ? "listing-card__time--ended" : ""}`}
 				>
-					{timeRemaining(listing)}
+					<Countdown listing={listing} />
 				</div>
 			</div>
 		</div>

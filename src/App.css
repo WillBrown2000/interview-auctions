@@ -11,11 +11,7 @@
 
 body {
 	font-family:
-		-apple-system,
-		BlinkMacSystemFont,
-		"Segoe UI",
-		Roboto,
-		sans-serif;
+		-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 	background: #f5f5f5;
 	color: #1a1a1a;
 	min-height: 100vh;
@@ -101,7 +97,9 @@ body {
 	border-radius: 5px;
 	padding: 3px 10px;
 	cursor: pointer;
-	transition: background 0.15s, color 0.15s;
+	transition:
+		background 0.15s,
+		color 0.15s;
 }
 
 .panel__heading-action:hover {
@@ -477,7 +475,9 @@ body {
 	border: 1px solid #ddd;
 	border-radius: 6px;
 	cursor: pointer;
-	transition: color 0.15s, border-color 0.15s;
+	transition:
+		color 0.15s,
+		border-color 0.15s;
 }
 
 .filters__clear:hover {
@@ -508,7 +508,9 @@ body {
 	border-radius: 5px;
 	cursor: pointer;
 	white-space: nowrap;
-	transition: background 0.15s, color 0.15s;
+	transition:
+		background 0.15s,
+		color 0.15s;
 }
 
 .pager__button:hover:not(:disabled) {
@@ -571,4 +573,93 @@ body {
 
 .auction-result--unsold .auction-result__detail {
 	color: #777;
+}
+
+/* ============================================================
+   Countdown
+   ============================================================ */
+.countdown {
+	font-variant-numeric: tabular-nums;
+}
+
+.countdown--urgent {
+	color: #b3261e;
+	font-weight: 700;
+}
+
+.countdown--ended {
+	color: #999;
+}
+
+/* ============================================================
+   Price range filter
+   ============================================================ */
+.filters__price {
+	flex: 1;
+	min-width: 0;
+	padding: 7px 8px;
+	border: 1px solid #ddd;
+	border-radius: 6px;
+	font-size: 0.85rem;
+	font-family: inherit;
+	background: #fff;
+}
+
+.filters__price:focus {
+	outline: none;
+	border-color: #2596be;
+	box-shadow: 0 0 0 2px #2596be30;
+}
+
+.filters__price--invalid {
+	border-color: #b3261e;
+}
+
+.filters__price-sep {
+	align-self: center;
+	color: #999;
+	font-size: 0.85rem;
+	flex-shrink: 0;
+}
+
+.filters__hint {
+	font-size: 0.75rem;
+	color: #b3261e;
+}
+
+/* ============================================================
+   Live bid notice — shown when the price moves mid-compose
+   ============================================================ */
+.bid-form__notice {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	flex-wrap: wrap;
+	margin-bottom: 12px;
+	padding: 10px 12px;
+	border: 1px solid #ffd68a;
+	border-left: 4px solid #e8a13a;
+	border-radius: 6px;
+	background: #fff9ef;
+	font-size: 0.85rem;
+	color: #6b4b12;
+}
+
+.bid-form__notice-action {
+	flex-shrink: 0;
+	padding: 4px 10px;
+	font-size: 0.78rem;
+	font-weight: 600;
+	color: #6b4b12;
+	background: none;
+	border: 1px solid #e8a13a;
+	border-radius: 5px;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.bid-form__notice-action:hover {
+	background: #e8a13a;
+	color: #fff;
 }

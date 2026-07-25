@@ -1,6 +1,8 @@
 import { hasEnded } from "../auction";
 import type { Listing } from "../types";
+import { useNow } from "../useNow";
 import BidForm from "./BidForm";
+import Countdown from "./Countdown";
 
 interface Props {
 	listing: Listing;
@@ -18,7 +20,9 @@ function formatDate(iso: string): string {
 }
 
 export default function ListingDetail({ listing, onBidSuccess }: Props) {
-	const ended = hasEnded(listing);
+	// Shared clock, so the panel swaps the bid form for the result the instant
+	// the auction closes — no reload, and no timer of its own.
+	const ended = hasEnded(listing, useNow());
 
 	// The badge shows the status the auction is actually in, not the one the
 	// row happens to store. A listing whose end time has passed but that
@@ -71,6 +75,14 @@ export default function ListingDetail({ listing, onBidSuccess }: Props) {
 					</span>
 					<span className="meta-value">{formatDate(listing.endsAt)}</span>
 				</div>
+				{!ended && (
+					<div className="meta-row">
+						<span className="meta-label">Time Remaining</span>
+						<span className="meta-value">
+							<Countdown listing={listing} />
+						</span>
+					</div>
+				)}
 			</div>
 
 			{ended ? (

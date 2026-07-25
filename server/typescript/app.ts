@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import cors from "cors";
 import express, { type Request, type Response } from "express";
 import type { Db } from "./db";
+import { EventChannel } from "./events";
+import { log, metrics } from "./telemetry";
 
 // ============================================================
 // Types
@@ -112,6 +114,22 @@ class BadRequest extends HttpError {
 	constructor(message: string) {
 		super(400, message);
 	}
+}
+
+/**
+ * A low-cardinality label for why a bid was refused.
+ *
+ * Derived from the message rather than carried on the error so the wording can
+ * change without silently renaming a metric. There are few enough cases that
+ * matching is safe, and the fallback keeps an unrecognised one from becoming
+ * an untagged mystery.
+ */
+function reasonFor(err: HttpError): string {
+	if (err.status === 404) return "not_found";
+	if (/has ended/i.test(err.message)) return "ended";
+	if (/not currently active/i.test(err.message)) return "not_active";
+	if (/greater than the current bid/i.test(err.message)) return "too_low";
+	return "other";
 }
 
 function sendError(res: Response, err: unknown) {
@@ -276,11 +294,51 @@ function parseListingsQuery(query: Request["query"]): ListingsQuery {
 // App
 // ============================================================
 
-export function createApp(db: Db) {
+export function createApp(db: Db, channel: EventChannel = new EventChannel()) {
 	const app = express();
 
 	app.use(cors({ origin: "http://localhost:5173" }));
 	app.use(express.json());
+
+	/**
+	 * One structured log line and one timing metric per request.
+	 *
+	 * Routes are tagged by their pattern (`/api/listings/:id`) rather than the
+	 * resolved path. Tagging with the actual id would mint a new metric series
+	 * per listing, which is the standard way to accidentally spend a lot of
+	 * money on a metrics bill.
+	 *
+	 * Bound to the response's `finish` event so the duration covers the whole
+	 * request, and so a handler that throws is still recorded.
+	 */
+	app.use((req: Request, res: Response, next) => {
+		const startedAt = Date.now();
+
+		res.on("finish", () => {
+			const durationMs = Date.now() - startedAt;
+			// req.route is only populated once a handler has matched; falling
+			// back to the raw path keeps 404s from being silently untagged.
+			const route = req.route?.path ?? req.path;
+			const tags = [
+				`method:${req.method}`,
+				`route:${route}`,
+				`status:${res.statusCode}`,
+			];
+
+			metrics.timing("http.request", durationMs, tags);
+			metrics.count("http.requests", tags);
+
+			log.info("http.request", {
+				method: req.method,
+				path: req.path,
+				route,
+				status: res.statusCode,
+				durationMs,
+			});
+		});
+
+		next();
+	});
 
 	const findListing = db.prepare("SELECT * FROM listings WHERE id = ?");
 	const insertListing = db.prepare(`
@@ -476,10 +534,72 @@ export function createApp(db: Db) {
 
 		try {
 			const listing = placeBid(req.params.id, bid.bidder.trim(), bid.amount);
+
+			// Published after the transaction commits, never inside it. A
+			// subscriber told about a bid that then rolled back would be holding
+			// a price that never existed, and no later event would correct it.
+			channel.publish({
+				type: "bid",
+				listingId: listing.id,
+				currentBid: listing.currentBid,
+				currentBidder: listing.currentBidder as string,
+				placedAt: new Date().toISOString(),
+			});
+
+			metrics.count("bid.accepted", [`category:${listing.category}`]);
+			// The amount is a gauge rather than a tag: tagging by price would be
+			// one series per distinct bid.
+			metrics.gauge("bid.amount", listing.currentBid, [
+				`category:${listing.category}`,
+			]);
+			// The bidder's name is scrubbed by the logger; it's passed so the
+			// redaction is visible at the call site rather than assumed.
+			log.info("bid.accepted", {
+				listingId: listing.id,
+				amount: listing.currentBid,
+				bidder: listing.currentBidder,
+			});
+
 			return res.status(201).json(listing);
 		} catch (err) {
+			// Rejections are counted by reason. A spike in "too_low" is bidders
+			// racing each other; a spike in "ended" means clients are showing
+			// auctions as live after they've closed, which is a real bug.
+			if (err instanceof HttpError) {
+				metrics.count("bid.rejected", [`reason:${reasonFor(err)}`]);
+				log.info("bid.rejected", {
+					listingId: req.params.id,
+					status: err.status,
+					reason: reasonFor(err),
+				});
+			}
 			return sendError(res, err);
 		}
+	});
+
+	// GET /api/events — server-sent event stream.
+	//
+	// One global channel rather than a per-listing subscription: clients need
+	// the highest bidder on auctions they aren't currently viewing, so
+	// narrowing server-side would defeat the requirement. Subscribers apply
+	// only the events matching data they hold.
+	//
+	// No pre-flight body, no timeout, no JSON — the response stays open until
+	// the client goes away.
+	app.get("/api/events", (req: Request, res: Response) => {
+		channel.subscribe(res);
+		metrics.gauge("sse.subscribers", channel.subscriberCount);
+		log.info("sse.connected", { subscribers: channel.subscriberCount });
+
+		// Express would otherwise sit on this handler forever waiting for a
+		// response to finish; the request ends when the socket closes.
+		req.on("close", () => {
+			res.end();
+			// Emitted after the channel has dropped the subscriber, so the gauge
+			// reflects reality rather than the count a moment before.
+			metrics.gauge("sse.subscribers", channel.subscriberCount);
+			log.info("sse.disconnected", { subscribers: channel.subscriberCount });
+		});
 	});
 
 	// GET /api/listings/:id/bids — bid history, newest first.

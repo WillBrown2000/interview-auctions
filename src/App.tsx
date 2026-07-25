@@ -5,14 +5,30 @@ import ListingCard from "./components/ListingCard";
 import ListingDetail from "./components/ListingDetail";
 import ListingFilters, { type Filters } from "./components/ListingFilters";
 import type { Listing, PaginationMeta } from "./types";
+import { type AuctionEvent, useAuctionEvents } from "./useAuctionEvents";
 
 // Small enough that paging is visible against the eight seeded listings.
 const PAGE_SIZE = 6;
 
-const EMPTY_FILTERS: Filters = {
+/**
+ * Live auctions, soonest to close, first.
+ *
+ * status defaults to "active" rather than "any" because sorting by end date
+ * ascending puts the *longest*-expired lots at the front — so an unfiltered
+ * landing page was six auctions that closed months ago. Someone arriving at an
+ * auction site wants what they can still bid on.
+ *
+ * Filtering rather than reordering keeps this a UI default: the API still
+ * returns everything, and "Any status" is one click away. The alternative —
+ * ranking ended lots last inside the default sort — pushes a display decision
+ * into the query and makes the endpoint's ordering harder to state.
+ */
+const DEFAULT_FILTERS: Filters = {
 	q: "",
 	category: "",
-	status: "",
+	status: "active",
+	minPrice: "",
+	maxPrice: "",
 	sort: "endsAt",
 	order: "asc",
 };
@@ -20,7 +36,7 @@ const EMPTY_FILTERS: Filters = {
 export default function App() {
 	const [listings, setListings] = useState<Listing[]>([]);
 	const [pagination, setPagination] = useState<PaginationMeta | null>(null);
-	const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+	const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
 	const [page, setPage] = useState(1);
 
 	// The selected listing is held as a whole object, not looked up by id in
@@ -64,6 +80,55 @@ export default function App() {
 		setPage(1);
 	};
 
+	/**
+	 * Applies a server push to whatever this client is holding.
+	 *
+	 * Patching in place rather than refetching. A refetch on every bid would
+	 * reorder the page under the user when sorted by price, and could move the
+	 * listing they're reading onto a different page entirely. The event carries
+	 * everything needed to update the row.
+	 *
+	 * Listings the client doesn't have are ignored: the stream is global so
+	 * that auctions off-screen stay current, but nothing needs doing for a lot
+	 * that isn't rendered.
+	 */
+	const applyEvent = useCallback((event: AuctionEvent) => {
+		const patch = (listing: Listing): Listing => {
+			if (listing.id !== event.listingId) return listing;
+
+			switch (event.type) {
+				case "bid":
+					return {
+						...listing,
+						currentBid: event.currentBid,
+						currentBidder: event.currentBidder,
+					};
+				case "closed":
+					return { ...listing, status: "closed", endsAt: event.endsAt };
+				case "updated":
+					// Carries the whole mutable surface, so this is the one case
+					// that can move a listing back to active with a new deadline.
+					return {
+						...listing,
+						status: event.status,
+						endsAt: event.endsAt,
+						currentBid: event.currentBid,
+						currentBidder: event.currentBidder,
+					};
+			}
+		};
+
+		setListings((prev) => prev.map(patch));
+		setSelected((prev) => (prev ? patch(prev) : prev));
+	}, []);
+
+	useAuctionEvents({
+		onEvent: applyEvent,
+		// Events during a disconnect are lost. Refetching is cheaper than
+		// server-side replay and correct no matter how long the gap was.
+		onReconnect: () => load(),
+	});
+
 	const handleBidSuccess = (updated: Listing) => {
 		setListings((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
 		setSelected((prev) => (prev?.id === updated.id ? updated : prev));
@@ -102,7 +167,11 @@ export default function App() {
 						</button>
 					</div>
 
-					<ListingFilters value={filters} onChange={handleFiltersChange} />
+					<ListingFilters
+						value={filters}
+						defaults={DEFAULT_FILTERS}
+						onChange={handleFiltersChange}
+					/>
 
 					{error && (
 						<div className="state-message state-message--error">{error}</div>
