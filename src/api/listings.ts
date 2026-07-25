@@ -1,8 +1,10 @@
 import type { Bid, Category, Listing, ListingQuery, Paginated } from "../types";
 
 async function errorFrom(res: Response, fallback: string): Promise<Error> {
+	// The fallback matters: an error page from a proxy isn't JSON, and a parse
+	// exception is not something the UI can show a bidder.
 	const body = await res.json().catch(() => ({}));
-	return new Error(body.error || body.detail || fallback);
+	return new Error(body.error || fallback);
 }
 
 export async function getListings(

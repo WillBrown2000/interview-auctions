@@ -133,17 +133,13 @@ describe("placeBid", () => {
 		);
 	});
 
-	it("reads FastAPI's detail field as well as the Express error field", async () => {
-		// The project ships two interchangeable backends that name their error
-		// field differently. Handling both keeps the client honest about that.
-		mockFetch({
-			ok: false,
-			status: 400,
-			body: { detail: "Listing not found" },
-		});
+	it("falls back to a readable message when the body has no error field", async () => {
+		// A proxy or load balancer returning its own error page is JSON-shaped
+		// at best; the UI still needs something to put in front of a bidder.
+		mockFetch({ ok: false, status: 502, body: { unexpected: true } });
 
 		await expect(placeBid("nope", "Jane", 100)).rejects.toThrow(
-			"Listing not found",
+			"Failed to place bid",
 		);
 	});
 });

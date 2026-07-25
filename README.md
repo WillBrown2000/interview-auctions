@@ -132,15 +132,17 @@ since a per-package number only ever tells half the story.
 
 ---
 
-## Which backend
+## Backend
 
-The project shipped with two equivalent backends and asked for one to be
-chosen. **This work uses TypeScript/Express** (`server/typescript`).
+The project shipped with two interchangeable backends — TypeScript/Express and
+Python/FastAPI — and asked for one to be chosen. **This uses
+TypeScript/Express**, in `server/typescript`.
 
-`server/python` is left exactly as delivered — it still has the original
-bidding bug and none of the features below. Leaving it untouched seemed better
-than half-migrating it: a backend carrying the bug fix but not bid history or
-pagination is more confusing than one that's obviously untouched.
+The Python one has been deleted rather than left in place. It would have been
+the original code with the original bidding bug and none of the work below, and
+a reviewer opening `server/python/main.py` would be reading something that has
+nothing to do with this submission. Its history is in the first commit if it's
+ever wanted back.
 
 ---
 
