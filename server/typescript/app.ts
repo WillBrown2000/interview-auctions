@@ -4,6 +4,11 @@ import express, { type Request, type Response } from "express";
 import type { Db } from "./db";
 import { EventChannel } from "./events";
 import { log, metrics } from "./telemetry";
+import {
+	describeUploadError,
+	imageUrlFor,
+	uploadListingImage,
+} from "./uploads";
 
 // ============================================================
 // Types
@@ -39,7 +44,12 @@ interface BidRequest {
 }
 
 interface CreateListingRequest {
-	title: string;
+	title?: unknown;
+	description?: unknown;
+	category?: unknown;
+	/** The reserve — what bidding opens at. */
+	startingPrice?: unknown;
+	endsAt?: unknown;
 }
 
 // ============================================================
@@ -291,6 +301,95 @@ function parseListingsQuery(query: Request["query"]): ListingsQuery {
 }
 
 // ============================================================
+// Creating a listing
+// ============================================================
+
+const MAX_TITLE = 200;
+const MAX_DESCRIPTION = 2_000;
+const DEFAULT_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+/** A year out. Past this, the seller has almost certainly mistyped the year. */
+const MAX_DURATION_MS = 365 * 24 * 60 * 60 * 1000;
+
+/**
+ * Multipart sends every field as a string, JSON preserves types. Rather than
+ * having two paths, everything is normalised through here.
+ */
+function asString(value: unknown, name: string, max: number): string {
+	if (value === undefined || value === null) return "";
+	if (typeof value !== "string") {
+		throw new BadRequest(`${name} must be text`);
+	}
+	const trimmed = value.trim();
+	if (trimmed.length > max) {
+		throw new BadRequest(`${name} must be ${max} characters or fewer`);
+	}
+	return trimmed;
+}
+
+function buildListing(body: CreateListingRequest, hasImage: boolean): Listing {
+	const title = asString(body.title, "Title", MAX_TITLE);
+	if (!title) throw new BadRequest("Title is required");
+
+	const description = asString(
+		body.description,
+		"Description",
+		MAX_DESCRIPTION,
+	);
+
+	const category =
+		parseEnum(body.category, "category", CATEGORIES) ?? "implement";
+
+	// The reserve. Zero is allowed and means no reserve, which is a real thing
+	// sellers do -- so the check is "not negative" rather than "positive".
+	let startingPrice = 0;
+	if (body.startingPrice !== undefined && body.startingPrice !== "") {
+		startingPrice = Number(body.startingPrice);
+		if (!Number.isFinite(startingPrice) || startingPrice < 0) {
+			throw new BadRequest("Starting price must be a number of 0 or more");
+		}
+	}
+
+	// datetime-local sends "2026-08-01T14:30" with no zone, which Date parses
+	// as the seller's local time. That is what they meant by it.
+	let endsAt = new Date(Date.now() + DEFAULT_DURATION_MS);
+	if (body.endsAt !== undefined && body.endsAt !== "") {
+		if (typeof body.endsAt !== "string") {
+			throw new BadRequest("End date must be a date and time");
+		}
+		const parsed = new Date(body.endsAt);
+		if (Number.isNaN(parsed.getTime())) {
+			throw new BadRequest("End date is not a valid date and time");
+		}
+		if (parsed.getTime() <= Date.now()) {
+			// An auction created already closed can never take a bid, which is
+			// almost certainly a typo rather than an intention.
+			throw new BadRequest("End date must be in the future");
+		}
+		if (parsed.getTime() > Date.now() + MAX_DURATION_MS) {
+			throw new BadRequest("End date must be within a year");
+		}
+		endsAt = parsed;
+	}
+
+	return {
+		id: randomUUID(),
+		title,
+		description,
+		category,
+		startingPrice,
+		// Bidding opens at the reserve, so the first bid has to beat it. Derived
+		// here rather than accepted from the client for the same reason id is.
+		currentBid: startingPrice,
+		currentBidder: null,
+		status: "active",
+		endsAt: endsAt.toISOString(),
+		// Points at the endpoint that streams the blob back. Assigned here so the
+		// id is generated once and both the row and the URL agree on it.
+		imageUrl: "",
+	};
+}
+
+// ============================================================
 // App
 // ============================================================
 
@@ -362,6 +461,35 @@ export function createApp(db: Db, channel: EventChannel = new EventChannel()) {
 	// the truth.
 	const selectBids = db.prepare(
 		"SELECT * FROM bids WHERE listing_id = ? ORDER BY placed_at DESC, rowid DESC",
+	);
+	const insertImage = db.prepare(`
+		INSERT INTO listing_images (listing_id, content_type, byte_size, data, created_at)
+		VALUES (@listingId, @contentType, @byteSize, @data, @createdAt)
+	`);
+	const findImage = db.prepare(
+		"SELECT content_type, byte_size, data, created_at FROM listing_images WHERE listing_id = ?",
+	);
+
+	/**
+	 * Writes a listing and its photo together.
+	 *
+	 * One transaction because they are one thing: a listing whose imageUrl
+	 * points at an image row that failed to insert would 404 its own photo
+	 * forever, and nothing would notice.
+	 */
+	const createListing = db.transaction(
+		(listing: Listing, file?: Express.Multer.File) => {
+			insertListing.run(listing);
+			if (file) {
+				insertImage.run({
+					listingId: listing.id,
+					contentType: file.mimetype,
+					byteSize: file.size,
+					data: file.buffer,
+					createdAt: new Date().toISOString(),
+				});
+			}
+		},
 	);
 
 	/**
@@ -475,28 +603,89 @@ export function createApp(db: Db, channel: EventChannel = new EventChannel()) {
 	});
 
 	// POST /api/listings
+	//
+	// Accepts JSON, or multipart/form-data when a photo comes with it. multer
+	// ignores anything that isn't multipart, so both content types reach the
+	// same handler.
+	//
+	// Seller-supplied:  title, description, category, startingPrice, endsAt, image
+	// Server-owned:     id, currentBid, currentBidder, status
+	//
+	// The split is the point. A caller who could set their own id could
+	// overwrite an existing listing; one who could set currentBidder could
+	// open a lot already won. Those four are decided here and any values sent
+	// for them are ignored rather than rejected -- a client sending extra keys
+	// isn't an error, it just doesn't get to pick.
 	app.post("/api/listings", (req: Request, res: Response) => {
-		const { title } = req.body as CreateListingRequest;
+		uploadListingImage(req, res, (uploadErr: unknown) => {
+			if (uploadErr) {
+				const message = describeUploadError(uploadErr);
+				if (message) return res.status(400).json({ error: message });
+				throw uploadErr;
+			}
 
-		if (!title || typeof title !== "string" || title.trim() === "") {
-			return res.status(400).json({ error: "Title is required" });
+			const body = req.body as CreateListingRequest;
+			const file = (req as Request & { file?: Express.Multer.File }).file;
+
+			let listing: Listing;
+			try {
+				listing = buildListing(body, Boolean(file));
+			} catch (err) {
+				return sendError(res, err);
+			}
+
+			if (file) listing.imageUrl = imageUrlFor(listing.id);
+
+			// The listing and its photo are one unit. A listing whose imageUrl
+			// points at a row that failed to insert would 404 its own image
+			// forever, with nothing to notice or repair it.
+			createListing(listing, file);
+
+			metrics.count("listing.created", [`category:${listing.category}`]);
+			log.info("listing.created", {
+				listingId: listing.id,
+				category: listing.category,
+				startingPrice: listing.startingPrice,
+				imageBytes: file?.size ?? 0,
+			});
+
+			return res.status(201).json(listing);
+		});
+	});
+
+	// GET /api/listings/:id/image — the stored photo.
+	//
+	// Separate from the listing payload so a page of cards doesn't carry
+	// megabytes of image data, and separate from the listings table for the
+	// same reason on the read side.
+	app.get("/api/listings/:id/image", (req: Request, res: Response) => {
+		const row = findImage.get(req.params.id) as
+			| {
+					content_type: string;
+					byte_size: number;
+					data: Buffer;
+					created_at: string;
+			  }
+			| undefined;
+
+		if (!row) {
+			return res.status(404).json({ error: "Image not found" });
 		}
 
-		const listing: Listing = {
-			id: randomUUID(),
-			title: title.trim(),
-			description: "",
-			category: "implement",
-			startingPrice: 0,
-			currentBid: 0,
-			currentBidder: null,
-			status: "active",
-			endsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-			imageUrl: "",
-		};
+		// Photos are written once with the listing and never replaced, so an
+		// ETag over the row's identity is stable. It still lets a client
+		// revalidate rather than being told to cache forever, which would be
+		// wrong the moment listings become editable.
+		const etag = `"${req.params.id}-${row.byte_size}"`;
+		if (req.headers["if-none-match"] === etag) {
+			return res.status(304).end();
+		}
 
-		insertListing.run(listing);
-		return res.status(201).json(listing);
+		res.setHeader("Content-Type", row.content_type);
+		res.setHeader("Content-Length", row.byte_size);
+		res.setHeader("ETag", etag);
+		res.setHeader("Cache-Control", "public, max-age=3600");
+		return res.end(row.data);
 	});
 
 	// GET /api/listings/:id

@@ -72,8 +72,8 @@ without a refresh.
 
 ## Running it by hand
 
-Two terminals, if you'd rather not use make. The API needs to be running before
-the frontend is useful.
+Two terminals, without make. The API needs to be running before the frontend is
+useful.
 
 **Terminal 1 — API** (http://localhost:3001)
 
@@ -164,14 +164,46 @@ in filename order, each inside a transaction, with applied filenames recorded
 in a `schema_migrations` table.
 
 ```
-001_initial.sql       listings
-002_bid_history.sql   bids
+001_initial.sql                    listings
+002_bid_history.sql                bids
+003_listing_images.sql             listing photos, stored as blobs
+004_listings_default_view_index.sql indexes for the landing page
 ```
 
 It's about forty lines in `db.ts`. Knex or Drizzle would both do this, but the
 behaviour that matters — ordering, atomicity, what counts as already applied —
 is short enough to state directly, and a dependency in a codebase this size is
 something you have to justify.
+
+### Indexes
+
+The landing page — active listings, soonest to close — is the query almost
+every visit runs, so it gets an index shaped for it:
+
+```sql
+CREATE INDEX listings_status_ends_at_idx ON listings (status, ends_at, id);
+```
+
+Filter column first, then sort columns. Before it, SQLite filtered on `status`
+and sorted the survivors:
+
+```
+SEARCH listings USING INDEX listings_status_idx (status=?)
+USE TEMP B-TREE FOR ORDER BY        <-- sorts every active listing
+```
+
+That sort grows with the number of active auctions, not the size of the page,
+so it's invisible at 300 rows and the first thing to hurt at 300,000. With the
+composite index the sort step is gone, and the pager's `COUNT` becomes a
+covering index scan that never touches the table. Measured at 20,000 rows with
+statistics gathered: **0.04ms**.
+
+`id` is in there because the query's tiebreak is `(ends_at, id)` — without it
+SQLite still needs a sort to settle rows sharing an end time. The same applies
+one level down, so `listings_ends_at_idx` was rebuilt as `(ends_at, id)` for
+the "any status, ending soonest" view. `listings_status_idx` was dropped:
+`status` leads the new index, so it was a second index to write on every insert
+for no read benefit.
 
 **To add a migration:** create the next numbered file. Don't edit one that has
 already run — "applied" is tracked by filename with no checksum, so editing an
@@ -195,7 +227,8 @@ that runs once.
 | Method | Path | |
 |---|---|---|
 | `GET` | `/api/listings` | paginated, filterable, sortable |
-| `POST` | `/api/listings` | create (title only) |
+| `POST` | `/api/listings` | create — JSON or multipart with a photo |
+| `GET` | `/api/listings/:id/image` | the listing's photo |
 | `GET` | `/api/listings/:id` | one listing |
 | `POST` | `/api/listings/:id/bids` | place a bid |
 | `GET` | `/api/listings/:id/bids` | bid history, newest first |
@@ -226,6 +259,65 @@ that runs once.
 
 Invalid parameters return `400` naming the parameter rather than being
 coerced — `page=abc` is a caller bug, and quietly serving page 1 hides it.
+
+---
+
+## Creating a listing
+
+`POST /api/listings` takes JSON, or `multipart/form-data` when a photo comes
+with it.
+
+| Field | | |
+|---|---|---|
+| `title` | required | up to 200 characters |
+| `description` | optional | up to 2,000 characters |
+| `category` | optional | `tractor` `combine` `implement` `attachment`, default `implement` |
+| `startingPrice` | optional | the reserve. Bidding opens here, so the first bid must beat it. `0` means no reserve |
+| `endsAt` | optional | must be in the future and within a year. Defaults to a week out |
+| `image` | optional | JPEG, PNG, WebP or GIF, up to 2MB |
+
+**`id`, `currentBid`, `currentBidder` and `status` are the server's.** Values
+sent for them are ignored rather than rejected — a client sending extra keys
+isn't broken, it just doesn't get to pick. The reason is the obvious one: a
+caller who could set their own `id` could overwrite an existing listing, and
+one who could set `currentBidder` could open a lot already won.
+
+`currentBid` starts at `startingPrice`, which is what makes the reserve
+meaningful without a second column to keep in step.
+
+### Photos
+
+Stored in the database as a blob, in `listing_images`, and served from
+`GET /api/listings/:id/image`.
+
+**In the database rather than on disk** because local disk breaks the moment
+there's more than one process — a second instance serves 404s for anything the
+first one accepted. Keeping the bytes here means the database file is the whole
+state, which is also what makes `make reset` actually reset. SQLite is well
+suited to this at these sizes; its own guidance puts blob reads ahead of
+filesystem reads below roughly 100KB and competitive to about a megabyte, and
+the 2MB cap makes the tail of that range the worst case rather than the norm.
+Past one machine the answer is object storage with a presigned URL, which is a
+different shape rather than a bigger version of this.
+
+**In its own table, not a column on `listings`**, because every list query is
+`SELECT * FROM listings` and an inline blob would drag megabytes through memory
+to render six cards. A test asserts listing payloads carry the URL and never
+the bytes.
+
+**Multipart rather than base64 in JSON**: base64 avoids the dependency but
+inflates the payload by a third and has to be fully buffered before anything
+can validate it. multer enforces the cap while receiving, so an oversized
+upload is cut off mid-flight.
+
+The stored filename is never the client's — the URL is derived from the listing
+id, so `../../etc/passwd.png` has nowhere to go. Type checking is an allowlist,
+and SVG is deliberately not on it: an image to a browser, a script host to an
+attacker.
+
+The listing and its photo are written in one transaction. A listing whose
+`imageUrl` pointed at an image row that failed to insert would 404 its own
+photo forever, with nothing to notice or repair it.
 
 ---
 
@@ -367,8 +459,8 @@ get told your bid has to be higher than $185,000. Bid $100 and you win it.
 The fix is `<=`, not `<`. A bid equal to the current one should also be
 rejected, and the error message already promised "greater than the current bid",
 so `<=` is what makes the message true. `<` would pass a naive "higher bid wins"
-test and quietly allow ties, which is the kind of thing you find out about
-during a dispute.
+test and quietly allow ties — the kind of thing that surfaces during a dispute
+rather than during development.
 
 ### 2. Reading `e.currentTarget` after an `await`
 
@@ -381,9 +473,9 @@ e.currentTarget.reset();   // currentTarget is null by now
 ```
 
 React sets `currentTarget` back to null once the handler's synchronous phase
-ends. The await means we're well past that, so this throws — on a *successful*
-bid. That's the confusing part: the bid goes through, the server has it, and the
-UI still shows you an error and won't clear the form.
+ends. The await puts this line well past that point, so it throws — on a
+*successful* bid. That's the confusing part: the bid goes through, the server
+has it, and the UI still reports an error and won't clear the form.
 
 The fix is to grab the element before the await:
 
@@ -399,10 +491,10 @@ call.
 
 ### 3. Bids on auctions that had already closed
 
-Not in the brief's repro steps. Will spotted it while clicking around: the
-endpoint checked `status !== "active"` and never looked at `endsAt`, so a lot
-that closed in April was still taking bids in July. Someone bid $999,999 on it
-and won.
+Not in the brief's repro steps. I found it while clicking through the seeded
+listings: the endpoint checked `status !== "active"` and never looked at
+`endsAt`, so a lot that closed in April was still taking bids in July. A bid of
+$999,999 on it was accepted.
 
 I wrote the test first for this one, watched it fail with "expected 400, got
 201", then added the check inside the bid transaction next to the amount
@@ -437,22 +529,22 @@ Things nobody asked for. Listed separately so it's clear what was scope and what
 wasn't.
 
 **Tests.** The brief says they're not required. There were none, and after the
-first bug I wanted a way to prove the fix stuck. 301 now, ~96% combined. The
+first bug I wanted a way to prove the fix stuck. 339 now, ~96% combined. The
 frontend had no test runner at all, so that's Vitest + jsdom + Testing Library
 added from scratch. The clearest payoff: reverting the `>=` operator fails 13
 tests, so the original bug can't come back quietly.
 
 **SQLite and migrations.** The app was in-memory and everything vanished on
-restart. Two numbered migrations behind a ~40-line runner, rather than Knex or
-Drizzle, because in a code review you have to defend every dependency and this
-one is short enough to just read. It also bought the bid transaction, which is
+restart. Four numbered migrations behind a ~40-line runner, rather than Knex or
+Drizzle, because every dependency is one more thing to defend and this is short
+enough to read in a sitting. It also bought the bid transaction, which is
 what makes concurrent bidding actually safe rather than accidentally safe.
 
 **Price sorting and filters.** `sort` and `order` weren't asked for — the brief
 says pagination should compose with sorting "already in place", and there wasn't
-any. Sorting by price and end date is the thing you'd actually want on an
-auction site. The price range filter existed in the API before the UI exposed
-it, which was an oversight rather than a plan.
+any. Sorting by price and end date is what an auction site needs. The price
+range filter shipped in the API before the UI exposed it, which was an oversight
+on my part rather than a plan.
 
 **Structured logging and telemetry.** There was no logging at all, not even
 request logs. JSON lines to stdout, and metrics to Datadog when `DD_API_KEY` is
@@ -473,17 +565,17 @@ once, so if realtime breaks, that card visibly stops moving.
 halves. Mostly so nobody reviewing this has to read setup instructions to see it
 working.
 
-All of this landed inside the brief's 1–2 hours — about 1h55m from unzipping to
-the last commit, and the commit timestamps show the shape of it. The tooling
-isn't instead of the tasks; it's what made the tasks quicker. Migrations meant I
-stopped hand-editing fixture data. The seed script meant pagination had
-something real to page through. The self-refreshing listing meant I could watch
-a countdown expire without waiting a minute each time.
+The assigned tasks landed inside the brief's 1–2 hours; the commit timestamps
+show the shape of it. Everything after that is the tooling above, and I kept
+going because each piece paid for itself. Migrations meant I stopped
+hand-editing fixture data. The seed script meant pagination had something real
+to page through. The self-refreshing listing meant I could watch a countdown
+expire without waiting a minute each time.
 
-The tests are the clearest case. Writing them up front cost maybe fifteen
-minutes and caught the expiry bug, the stale-status bug on the cards, and a
-`.gitignore` pattern that was silently committing the database. Each of those
-would have cost longer to find by clicking around.
+The tests are the clearest case. Writing them up front caught the expiry bug,
+the stale-status bug on the cards, and a `.gitignore` pattern that was silently
+committing the database — each of which would have taken longer to find by
+clicking around.
 
 ---
 

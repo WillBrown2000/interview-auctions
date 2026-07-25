@@ -663,3 +663,81 @@ body {
 	background: #e8a13a;
 	color: #fff;
 }
+
+/* ============================================================
+   Create-listing extras — textarea, hints, photo preview
+   ============================================================ */
+.bid-form__field textarea,
+.bid-form__field select {
+	width: 100%;
+	padding: 8px 10px;
+	border: 1px solid #ddd;
+	border-radius: 6px;
+	font-size: 0.9rem;
+	font-family: inherit;
+	background: #fff;
+	color: #1a1a1a;
+}
+
+.bid-form__field textarea {
+	resize: vertical;
+}
+
+.bid-form__field select {
+	text-transform: capitalize;
+	cursor: pointer;
+}
+
+.bid-form__field textarea:focus,
+.bid-form__field select:focus {
+	outline: none;
+	border-color: #2596be;
+	box-shadow: 0 0 0 2px #2596be30;
+}
+
+.bid-form__field input[type="file"] {
+	width: 100%;
+	font-size: 0.82rem;
+	color: #555;
+}
+
+.bid-form__hint {
+	display: block;
+	margin-top: 4px;
+	font-size: 0.75rem;
+	color: #999;
+}
+
+.image-preview {
+	position: relative;
+	margin-bottom: 14px;
+	border: 1px solid #e5e5e5;
+	border-radius: 6px;
+	overflow: hidden;
+	background: #fafafa;
+}
+
+.image-preview img {
+	display: block;
+	width: 100%;
+	max-height: 220px;
+	object-fit: contain;
+}
+
+.image-preview__remove {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	padding: 4px 10px;
+	font-size: 0.75rem;
+	font-weight: 600;
+	color: #fff;
+	background: rgba(0, 0, 0, 0.6);
+	border: none;
+	border-radius: 5px;
+	cursor: pointer;
+}
+
+.image-preview__remove:hover {
+	background: rgba(0, 0, 0, 0.8);
+}

@@ -1,8 +1,20 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { readdirSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { initDatabase, migrate, openDatabase, seedIfEmpty } from "../db";
+
+/** The migrations on disk, in the order they are applied. */
+function migrationFiles(): string[] {
+	return readdirSync(new URL("../migrations", import.meta.url))
+		.filter((f) => f.endsWith(".sql"))
+		.sort();
+}
+
+function migrationCount(): number {
+	return migrationFiles().length;
+}
 
 const temps: string[] = [];
 
@@ -64,10 +76,9 @@ describe("migrate", () => {
 			.prepare("SELECT name FROM schema_migrations ORDER BY name")
 			.all() as { name: string }[];
 
-		expect(applied.map((r) => r.name)).toEqual([
-			"001_initial.sql",
-			"002_bid_history.sql",
-		]);
+		// Compared against the directory so adding a migration doesn't mean
+		// editing this test, and so a file that fails to apply is caught.
+		expect(applied.map((r) => r.name)).toEqual(migrationFiles());
 		db.close();
 	});
 
@@ -93,13 +104,15 @@ describe("migrate", () => {
 		migrate(db);
 
 		expect(() => migrate(db)).not.toThrow();
+		// Counted against the directory rather than a literal, so adding a
+		// migration doesn't require editing this test.
 		expect(
 			(
 				db.prepare("SELECT COUNT(*) c FROM schema_migrations").get() as {
 					c: number;
 				}
 			).c,
-		).toBe(2);
+		).toBe(migrationCount());
 		db.close();
 	});
 
@@ -111,7 +124,7 @@ describe("migrate", () => {
 		const second: string[] = [];
 		migrate(db, (m) => second.push(m));
 
-		expect(first).toHaveLength(2);
+		expect(first).toHaveLength(migrationCount());
 		expect(second).toHaveLength(0);
 		db.close();
 	});

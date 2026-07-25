@@ -1,4 +1,4 @@
-import type { Bid, Listing, ListingQuery, Paginated } from "../types";
+import type { Bid, Category, Listing, ListingQuery, Paginated } from "../types";
 
 async function errorFrom(res: Response, fallback: string): Promise<Error> {
 	const body = await res.json().catch(() => ({}));
@@ -34,16 +34,42 @@ export async function getListing(id: string): Promise<Listing> {
 	return res.json();
 }
 
-export async function createListing(data: { title: string }): Promise<Listing> {
-	const res = await fetch("/api/listings", {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify(data),
-	});
-	if (!res.ok) {
-		const body = await res.json().catch(() => ({}));
-		throw new Error(body.error || body.detail || "Failed to create listing");
+export interface NewListing {
+	title: string;
+	description?: string;
+	category?: Category | "";
+	/** The reserve — what bidding opens at. */
+	startingPrice?: string;
+	/** Local datetime from the form; the server treats it as the seller's zone. */
+	endsAt?: string;
+	image?: File | null;
+}
+
+export async function createListing(data: NewListing): Promise<Listing> {
+	// Always multipart, whether or not there's a photo. The alternative is
+	// branching on the presence of a file and maintaining two encodings of the
+	// same request; the server accepts both, so the client only needs one.
+	const form = new FormData();
+	form.set("title", data.title);
+
+	for (const key of [
+		"description",
+		"category",
+		"startingPrice",
+		"endsAt",
+	] as const) {
+		const value = data[key];
+		// Empty means "not specified" — sending it would fail the server's
+		// validation for a field the user simply left alone.
+		if (value) form.set(key, value);
 	}
+
+	if (data.image) form.set("image", data.image);
+
+	// No Content-Type header: the browser sets it, and only the browser knows
+	// the multipart boundary it generated.
+	const res = await fetch("/api/listings", { method: "POST", body: form });
+	if (!res.ok) throw await errorFrom(res, "Failed to create listing");
 	return res.json();
 }
 

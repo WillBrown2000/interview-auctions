@@ -15,14 +15,18 @@ afterEach(() => {
 });
 
 function captureFetch(impl?: () => Promise<unknown>) {
-	const fn = vi.fn(impl ?? (async () => ({ ok: true })));
+	// Declared with the fetch signature so mock.calls is typed as [url, init]
+	// rather than an empty tuple.
+	const fn = vi.fn(async (_url?: unknown, _init?: unknown) =>
+		impl ? impl() : { ok: true },
+	);
 	vi.stubGlobal("fetch", fn);
 	return fn;
 }
 
 /** The parsed body of the first fetch call. */
 function body(fn: ReturnType<typeof captureFetch>) {
-	const init = fn.mock.calls[0][1] as RequestInit;
+	const init = fn.mock.calls[0][1] as unknown as RequestInit;
 	return JSON.parse(init.body as string) as {
 		series: { metric: string; type: number; tags: string[] }[];
 	};
@@ -45,7 +49,10 @@ describe("DatadogMetricSink", () => {
 		sink.count("bid.accepted", 1, ["category:tractor"]);
 		await sink.flush();
 
-		const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+		const [url, init] = fetchMock.mock.calls[0] as unknown as [
+			string,
+			RequestInit,
+		];
 		expect(url).toBe("https://api.datadoghq.eu/api/v2/series");
 		expect(init.method).toBe("POST");
 		expect((init.headers as Record<string, string>)["DD-API-KEY"]).toBe(

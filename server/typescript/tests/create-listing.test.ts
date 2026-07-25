@@ -68,10 +68,20 @@ describe("POST /api/listings", () => {
 		["a missing title", {}],
 		["an empty title", { title: "" }],
 		["a whitespace-only title", { title: "   " }],
-		["a non-string title", { title: 42 }],
 	])("rejects %s", async (_label, body) => {
 		const res = await api().post("/api/listings").send(body).expect(400);
 		expect(res.body.error).toMatch(/title is required/i);
+	});
+
+	it("rejects a title that isn't text", async () => {
+		// Distinct message from "required": the caller sent something, it just
+		// wasn't a string. Telling them it's missing would send them looking in
+		// the wrong place.
+		const res = await api()
+			.post("/api/listings")
+			.send({ title: 42 })
+			.expect(400);
+		expect(res.body.error).toMatch(/must be text/i);
 	});
 
 	it("makes the new listing immediately retrievable", async () => {

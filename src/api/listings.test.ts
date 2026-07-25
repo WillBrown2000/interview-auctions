@@ -172,16 +172,52 @@ describe("getBidHistory", () => {
 });
 
 describe("createListing", () => {
-	it("posts the title", async () => {
+	it("posts the fields as multipart", async () => {
 		const fn = mockFetch({ body: { id: "new" } });
 
-		await createListing({ title: "2020 Kubota M7-172" });
+		await createListing({
+			title: "2020 Kubota M7-172",
+			description: "Low hours.",
+			category: "tractor",
+			startingPrice: "45000",
+			endsAt: "2026-09-01T12:00",
+		});
 
 		const [url, init] = fn.mock.calls[0] as [string, RequestInit];
+		const body = init.body as FormData;
+
 		expect(url).toBe("/api/listings");
-		expect(JSON.parse(init.body as string)).toEqual({
-			title: "2020 Kubota M7-172",
-		});
+		expect(init.method).toBe("POST");
+		expect(body.get("title")).toBe("2020 Kubota M7-172");
+		expect(body.get("description")).toBe("Low hours.");
+		expect(body.get("category")).toBe("tractor");
+		expect(body.get("startingPrice")).toBe("45000");
+		expect(body.get("endsAt")).toBe("2026-09-01T12:00");
+	});
+
+	it("omits fields the seller left blank", async () => {
+		// Empty means "not specified". Sending it would fail validation for a
+		// field the user simply didn't touch.
+		const fn = mockFetch({ body: { id: "new" } });
+
+		await createListing({ title: "Minimal", description: "", category: "" });
+
+		const body = (fn.mock.calls[0] as [string, RequestInit])[1]
+			.body as FormData;
+		expect(body.get("title")).toBe("Minimal");
+		expect(body.get("description")).toBeNull();
+		expect(body.get("category")).toBeNull();
+	});
+
+	it("attaches a photo when one is chosen", async () => {
+		const fn = mockFetch({ body: { id: "new" } });
+		const file = new File(["binary"], "tractor.png", { type: "image/png" });
+
+		await createListing({ title: "With Photo", image: file });
+
+		const body = (fn.mock.calls[0] as [string, RequestInit])[1]
+			.body as FormData;
+		expect(body.get("image")).toBe(file);
 	});
 
 	it("surfaces a validation error", async () => {

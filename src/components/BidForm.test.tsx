@@ -18,7 +18,9 @@ const listing: Listing = {
 };
 
 function mockFetch(response: { ok?: boolean; body?: unknown }) {
-	const fn = vi.fn(async () => ({
+	// Declared with fetch's signature so mock.calls is typed [url, init]
+	// rather than an empty tuple.
+	const fn = vi.fn(async (_url?: unknown, _init?: unknown) => ({
 		ok: response.ok ?? true,
 		status: response.ok === false ? 400 : 201,
 		json: async () => response.body ?? {},
