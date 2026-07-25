@@ -278,7 +278,7 @@ with it.
 | `startingPrice` | optional | the reserve. Bidding opens here, so the first bid must beat it. `0` means no reserve |
 | `startsAt` | optional | when bidding opens. Omitted means immediately; a future date creates the listing as `pending` |
 | `endsAt` | optional | must be in the future, after `startsAt`, and within a year. Defaults to a week after the start |
-| `image` | optional | JPEG, PNG, WebP or GIF, up to 2MB |
+| `image` | optional | JPEG, PNG, WebP or GIF, up to 2MB. Pick a file or drag one onto the form |
 
 **`id`, `currentBid`, `currentBidder` and `status` are the server's.** Values
 sent for them are ignored rather than rejected — a client sending extra keys

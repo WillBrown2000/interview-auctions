@@ -47,6 +47,10 @@ export default function CreateListingForm({ onSuccess }: Props) {
 
 	const fileRef = useRef<HTMLInputElement>(null);
 
+	// Whether a file is currently hovering over the drop zone. Purely for the
+	// visual state -- the drop handler works regardless.
+	const [dragging, setDragging] = useState(false);
+
 	// Object URLs hold the file in memory until revoked, so every replaced
 	// preview would otherwise leak one for the life of the page.
 	useEffect(() => {
@@ -59,15 +63,40 @@ export default function CreateListingForm({ onSuccess }: Props) {
 		return () => URL.revokeObjectURL(url);
 	}, [image]);
 
+	/**
+	 * The single place a chosen photo is validated, whichever way it arrived.
+	 *
+	 * The picker and the drop zone converge here rather than each doing their
+	 * own checks, so the two paths can't drift apart -- a file dropped past a
+	 * limit the picker enforces would be a bug nobody would think to look for.
+	 */
 	const handleFile = (file: File | null) => {
 		setError(null);
+
+		if (file && !ACCEPTED_IMAGES.split(",").includes(file.type)) {
+			// The picker's `accept` attribute filters the dialog, but it is only
+			// a hint -- a dropped file has never been near it.
+			setError("That file isn't a supported image type.");
+			setImage(null);
+			return;
+		}
+
 		if (file && file.size > MAX_IMAGE_BYTES) {
 			setError("Photo must be 2MB or smaller.");
 			if (fileRef.current) fileRef.current.value = "";
 			setImage(null);
 			return;
 		}
+
 		setImage(file);
+	};
+
+	const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+		// Without preventDefault the browser leaves the page to display the
+		// dropped file, taking the half-filled form with it.
+		e.preventDefault();
+		setDragging(false);
+		handleFile(e.dataTransfer.files?.[0] ?? null);
 	};
 
 	const handleSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
@@ -215,15 +244,49 @@ export default function CreateListingForm({ onSuccess }: Props) {
 
 			<div className="bid-form__field">
 				<label htmlFor="image">Photo</label>
-				<input
-					id="image"
-					name="image"
-					type="file"
-					ref={fileRef}
-					accept={ACCEPTED_IMAGES}
-					onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
-					disabled={submitting}
-				/>
+
+				{/* biome-ignore lint/a11y/noStaticElementInteractions: the drop
+				    target is a convenience layered over the file input, which
+				    remains the keyboard- and screen-reader-accessible control. */}
+				<div
+					className={`dropzone ${dragging ? "dropzone--active" : ""}`}
+					// dragOver has to be cancelled too: the browser's default for
+					// it is "this is not a drop target", and without cancelling
+					// both, drop never fires.
+					onDragOver={(e) => {
+						e.preventDefault();
+						setDragging(true);
+					}}
+					onDragEnter={(e) => {
+						e.preventDefault();
+						setDragging(true);
+					}}
+					onDragLeave={() => setDragging(false)}
+					onDrop={handleDrop}
+				>
+					<p className="dropzone__text">
+						Drag a photo here, or{" "}
+						<button
+							type="button"
+							className="dropzone__browse"
+							onClick={() => fileRef.current?.click()}
+							disabled={submitting}
+						>
+							browse
+						</button>
+					</p>
+					<input
+						id="image"
+						name="image"
+						type="file"
+						ref={fileRef}
+						accept={ACCEPTED_IMAGES}
+						onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
+						disabled={submitting}
+						className="dropzone__input"
+					/>
+				</div>
+
 				<span className="bid-form__hint">
 					Optional. JPEG, PNG, WebP or GIF, up to 2MB.
 				</span>

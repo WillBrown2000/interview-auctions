@@ -764,3 +764,63 @@ body {
 .countdown--inline {
 	font-weight: 700;
 }
+
+/* ============================================================
+   Photo drop zone
+   ============================================================ */
+.dropzone {
+	padding: 18px 14px;
+	border: 2px dashed #d5d5d5;
+	border-radius: 8px;
+	background: #fafafa;
+	text-align: center;
+	transition:
+		border-color 0.15s,
+		background 0.15s;
+}
+
+.dropzone--active {
+	border-color: #2596be;
+	background: #f0f9fc;
+}
+
+.dropzone__text {
+	font-size: 0.85rem;
+	color: #777;
+	margin-bottom: 8px;
+}
+
+.dropzone__browse {
+	padding: 0;
+	font-size: inherit;
+	font-family: inherit;
+	font-weight: 600;
+	color: #2596be;
+	background: none;
+	border: none;
+	border-bottom: 1px solid #2596be;
+	cursor: pointer;
+}
+
+.dropzone__browse:hover:not(:disabled) {
+	color: #0d3d52;
+	border-color: #0d3d52;
+}
+
+.dropzone__browse:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+/* The real control. Kept in the layout and reachable by keyboard and screen
+   reader — the drop zone is a convenience on top of it, not a replacement. */
+.dropzone__input {
+	font-size: 0.78rem;
+	color: #999;
+	max-width: 100%;
+}
+
+.dropzone--active .dropzone__text {
+	color: #2596be;
+	font-weight: 600;
+}

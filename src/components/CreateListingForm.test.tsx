@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CreateListingForm from "./CreateListingForm";
@@ -77,6 +77,109 @@ describe("CreateListingForm", () => {
 		await waitFor(() => expect(fetchMock).toHaveBeenCalled());
 		const init = fetchMock.mock.calls[0][1] as unknown as RequestInit;
 		expect(init.headers).toBeUndefined();
+	});
+
+	describe("drag and drop", () => {
+		/**
+		 * jsdom builds no DataTransfer, so the drop event carries a hand-made
+		 * one. This is the shape the browser hands a drop handler.
+		 */
+		function dropFile(zone: HTMLElement, file: File) {
+			fireEvent.drop(zone, { dataTransfer: { files: [file] } });
+		}
+
+		const zone = () => document.querySelector(".dropzone") as HTMLElement;
+
+		it("accepts a photo dropped onto the zone", async () => {
+			const user = userEvent.setup();
+			const fetchMock = mockFetch({ body: { id: "new" } });
+			render(<CreateListingForm onSuccess={() => {}} />);
+
+			const file = new File(["binary"], "tractor.png", { type: "image/png" });
+			dropFile(zone(), file);
+
+			await user.type(screen.getByLabelText(/^title/i), "Dropped");
+			await user.click(screen.getByRole("button", { name: /create listing/i }));
+
+			await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+			const init = fetchMock.mock.calls[0][1] as unknown as RequestInit;
+			expect((init.body as FormData).get("image")).toBe(file);
+		});
+
+		it("previews a dropped photo the same as a picked one", () => {
+			render(<CreateListingForm onSuccess={() => {}} />);
+			dropFile(
+				zone(),
+				new File(["binary"], "tractor.png", { type: "image/png" }),
+			);
+
+			expect(
+				screen.getByAltText(/selected listing photo/i),
+			).toBeInTheDocument();
+		});
+
+		it("applies the same size limit to a dropped file", async () => {
+			// The picker and the drop zone converge on one validator, so a file
+			// can't arrive past a limit the other path enforces.
+			render(<CreateListingForm onSuccess={() => {}} />);
+			const tooBig = new File([new Uint8Array(3 * 1024 * 1024)], "huge.png", {
+				type: "image/png",
+			});
+
+			dropFile(zone(), tooBig);
+
+			expect(await screen.findByText(/2mb or smaller/i)).toBeInTheDocument();
+		});
+
+		it("rejects a dropped file that isn't an image", async () => {
+			// `accept` filters the picker's dialog and nothing else -- a dropped
+			// file has never been near it.
+			render(<CreateListingForm onSuccess={() => {}} />);
+			dropFile(
+				zone(),
+				new File(["#!/bin/sh"], "evil.sh", { type: "application/x-sh" }),
+			);
+
+			expect(
+				await screen.findByText(/isn't a supported image type/i),
+			).toBeInTheDocument();
+		});
+
+		it("highlights the zone while a file is over it", () => {
+			render(<CreateListingForm onSuccess={() => {}} />);
+			expect(zone().className).not.toMatch(/dropzone--active/);
+
+			fireEvent.dragOver(zone(), { dataTransfer: { files: [] } });
+			expect(zone().className).toMatch(/dropzone--active/);
+
+			fireEvent.dragLeave(zone());
+			expect(zone().className).not.toMatch(/dropzone--active/);
+		});
+
+		it("stops the browser navigating away to the dropped file", () => {
+			// The default action for a drop is to open the file, which would take
+			// the half-filled form with it.
+			render(<CreateListingForm onSuccess={() => {}} />);
+			const file = new File(["binary"], "tractor.png", { type: "image/png" });
+
+			const event = new Event("drop", { bubbles: true, cancelable: true });
+			Object.defineProperty(event, "dataTransfer", {
+				value: { files: [file] },
+			});
+			fireEvent(zone(), event);
+
+			expect(event.defaultPrevented).toBe(true);
+		});
+
+		it("keeps the file input reachable for keyboard and screen readers", () => {
+			// The drop zone is a convenience layered on the real control, not a
+			// replacement for it.
+			render(<CreateListingForm onSuccess={() => {}} />);
+			const input = screen.getByLabelText(/photo/i);
+
+			expect(input).toBeInTheDocument();
+			expect(input).toHaveAttribute("type", "file");
+		});
 	});
 
 	it("rejects an oversized photo before uploading it", async () => {
