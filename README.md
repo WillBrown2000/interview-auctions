@@ -477,6 +477,21 @@ ends. The await puts this line well past that point, so it throws — on a
 *successful* bid. That's the confusing part: the bid goes through, the server
 has it, and the UI still reports an error and won't clear the form.
 
+![A bid that succeeded, a form that didn't clear, and the duplicate submit it caused](docs/bug-currenttarget.png)
+
+The screenshot is the bug's downstream effect, reproduced by reverting the fix.
+The bid of $30,000 went through — the panel shows it as the current bid, under
+the right bidder. But `reset()` threw, so the form kept its values, and pressing
+Submit again re-sent the same amount. The server correctly refused it for not
+being greater than the current bid, which is the `400` in the console and the
+red banner.
+
+Worth noting where the original error *doesn't* appear: not in the console. The
+`reset()` call sits inside the `try`, so the `TypeError` is caught by the same
+handler meant for failed bids and rendered as though the bid itself had failed.
+A successful bid reporting a null-reference error is a confusing thing to debug
+from the outside, which is most of why this one is worth writing up.
+
 The fix is to grab the element before the await:
 
 ```ts
