@@ -1,4 +1,4 @@
-import { hasEnded } from "../auction";
+import { hasEnded, isPending, opensIn } from "../auction";
 import type { Listing } from "../types";
 import { useNow } from "../useNow";
 
@@ -74,6 +74,17 @@ interface Props {
  */
 export default function Countdown({ listing, className = "" }: Props) {
 	const now = useNow();
+
+	// A listing that hasn't opened counts down to its start, not its end.
+	// Showing time-until-close on a lot nobody can bid on yet is the wrong
+	// number entirely.
+	if (isPending(listing, now)) {
+		return (
+			<span className={`countdown countdown--pending ${className}`}>
+				Opens in {formatRemaining(opensIn(listing, now)).replace(/ left$/, "")}
+			</span>
+		);
+	}
 
 	// Goes through hasEnded so a listing the server has already closed reads
 	// "Ended" even if its endsAt is somehow still in the future.

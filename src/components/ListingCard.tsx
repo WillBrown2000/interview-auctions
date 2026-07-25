@@ -1,4 +1,4 @@
-import { hasEnded } from "../auction";
+import { hasEnded, isPending } from "../auction";
 import type { Listing } from "../types";
 import { useNow } from "../useNow";
 import Countdown from "./Countdown";
@@ -17,7 +17,9 @@ export default function ListingCard({ listing, isSelected, onClick }: Props) {
 	// Was `listing.status === "closed"`, which only greys out lots the server
 	// has swept. An auction past its end time but still stored as active read
 	// "Ended" in the corner while keeping the styling of a live lot.
-	const closed = hasEnded(listing, useNow());
+	const now = useNow();
+	const closed = hasEnded(listing, now);
+	const pending = isPending(listing, now);
 
 	return (
 		<div
@@ -36,6 +38,7 @@ export default function ListingCard({ listing, isSelected, onClick }: Props) {
 				<span className={`badge badge--${listing.category}`}>
 					{listing.category}
 				</span>
+				{pending && <span className="badge badge--pending">not open yet</span>}
 				<h3 className="listing-card__title">{listing.title}</h3>
 				<div className="listing-card__bid">
 					Current bid: <strong>${listing.currentBid.toLocaleString()}</strong>

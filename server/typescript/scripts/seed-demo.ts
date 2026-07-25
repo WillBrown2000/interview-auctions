@@ -227,6 +227,7 @@ interface GeneratedListing {
 	currentBid: number;
 	currentBidder: string | null;
 	status: "active" | "closed" | "pending";
+	startsAt: string;
 	endsAt: string;
 	imageUrl: string;
 	bids: GeneratedBid[];
@@ -258,20 +259,32 @@ function generate(count: number, now: number): GeneratedListing[] {
 		const endsAt = new Date(now + endsInHours * 3_600_000).toISOString();
 		const ended = endsInHours <= 0;
 
-		// A tenth of future auctions are still pending.
+		// A tenth of future auctions haven't opened yet, and those get a real
+		// start time in the future -- the sweep will open them on schedule.
+		// Before starts_at existed, generated "pending" lots were unbiddable
+		// forever with nothing able to change that.
 		//
 		// Of the ended ones, most are closed -- but roughly one in eight keeps
 		// status "active". Those are auctions past their end time that nothing
 		// has swept yet, and that window is real in any system where expiry is
 		// a background job. It's also the case the UI has to derive rather than
 		// trust, so the fixture needs to contain some.
+		const scheduled = !ended && random() < 0.1;
 		const status = ended
 			? random() < 0.125
 				? "active"
 				: "closed"
-			: random() < 0.1
+			: scheduled
 				? "pending"
 				: "active";
+
+		// Scheduled lots open somewhere between now and their end date;
+		// everything else opened at some point in the past.
+		const startsAt = new Date(
+			scheduled
+				? now + between(1, Math.max(2, endsInHours * 0.5)) * 3_600_000
+				: now + (endsInHours - between(24, 720)) * 3_600_000,
+		).toISOString();
 
 		// Roughly a third of lots attract no bids at all -- the empty-history
 		// case has to be common enough to hit while clicking around.
@@ -286,6 +299,7 @@ function generate(count: number, now: number): GeneratedListing[] {
 			currentBid: startingPrice,
 			currentBidder: null,
 			status,
+			startsAt,
 			endsAt,
 			imageUrl: `https://placehold.co/400x300?text=${encodeURIComponent(title)}`,
 			bids: [],
@@ -339,7 +353,7 @@ function generate(count: number, now: number): GeneratedListing[] {
 const SHOWCASE: {
 	label: string;
 	endsInMinutes: number;
-	status: "active" | "closed";
+	status: "active" | "closed" | "pending";
 	bids: number;
 }[] = [
 	{
@@ -369,6 +383,14 @@ const SHOWCASE: {
 	{ label: "5 hours", endsInMinutes: 5 * 60, status: "active", bids: 2 },
 	{ label: "next day", endsInMinutes: 23 * 60, status: "active", bids: 6 },
 	{ label: "3 days", endsInMinutes: 3 * 24 * 60, status: "active", bids: 0 },
+	// Opens 90 seconds after seeding, so the pending state and the sweep that
+	// ends it are both watchable without waiting.
+	{
+		label: "PENDING opens shortly",
+		endsInMinutes: 240,
+		status: "pending",
+		bids: 0,
+	},
 ];
 
 function showcase(now: number): GeneratedListing[] {
@@ -378,6 +400,11 @@ function showcase(now: number): GeneratedListing[] {
 		const [lo, hi] = BASE_PRICE[category];
 		const startingPrice = Math.round(between(lo, hi) / 500) * 500;
 		const endsAt = new Date(now + endsInMinutes * 60_000).toISOString();
+		// Pending showcase lots open in the future; everything else is already
+		// open and dated back before its own end.
+		const startsAt = new Date(
+			status === "pending" ? now + 90_000 : now - 86_400_000,
+		).toISOString();
 
 		const listing: GeneratedListing = {
 			id: randomUUID(),
@@ -389,6 +416,7 @@ function showcase(now: number): GeneratedListing[] {
 			currentBid: startingPrice,
 			currentBidder: null,
 			status,
+			startsAt,
 			endsAt,
 			imageUrl: `https://placehold.co/400x300?text=${encodeURIComponent(label)}`,
 			bids: [],
@@ -426,10 +454,10 @@ function insertAll(db: Db, listings: GeneratedListing[]): void {
 	const insertListing = db.prepare(`
 		INSERT INTO listings (
 			id, title, description, category, starting_price,
-			current_bid, current_bidder, status, ends_at, image_url
+			current_bid, current_bidder, status, starts_at, ends_at, image_url
 		) VALUES (
 			@id, @title, @description, @category, @startingPrice,
-			@currentBid, @currentBidder, @status, @endsAt, @imageUrl
+			@currentBid, @currentBidder, @status, @startsAt, @endsAt, @imageUrl
 		)
 	`);
 

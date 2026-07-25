@@ -741,3 +741,26 @@ body {
 .image-preview__remove:hover {
 	background: rgba(0, 0, 0, 0.8);
 }
+
+/* ============================================================
+   Pending — catalogued, not open for bidding yet
+   ============================================================ */
+.countdown--pending {
+	color: #7a5cc4;
+	font-weight: 600;
+}
+
+.badge--pending {
+	background: #efe9fb;
+	color: #5b3fa3;
+}
+
+.auction-result--pending {
+	border-color: #ded3f5;
+	border-left-color: #7a5cc4;
+	background: #faf8ff;
+}
+
+.countdown--inline {
+	font-weight: 700;
+}

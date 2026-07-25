@@ -14,6 +14,7 @@ function listing(overrides: Partial<Listing> = {}): Listing {
 		currentBid: 52_000,
 		currentBidder: "Jane Smith",
 		status: "active",
+		startsAt: new Date(0).toISOString(),
 		endsAt: new Date(Date.now() + 86_400_000).toISOString(),
 		imageUrl: "https://example.test/tractor.png",
 		...overrides,
@@ -113,6 +114,7 @@ describe("ListingDetail once an auction has ended", () => {
 		const { container } = show(
 			listing({
 				status: "active",
+				startsAt: new Date(0).toISOString(),
 				endsAt: new Date(Date.now() - 1_000).toISOString(),
 			}),
 		);

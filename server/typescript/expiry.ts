@@ -3,7 +3,9 @@ import type { EventChannel } from "./events";
 import { log, metrics } from "./telemetry";
 
 /**
- * Moves auctions past their end time into a closed state, and announces it.
+ * Moves auctions through their lifecycle on a timer, and announces each move.
+ *
+ *     pending --(starts_at passes)--> active --(ends_at passes)--> closed
  *
  * Why this exists at all, given the bid endpoint already refuses late bids:
  * that check protects correctness, but it leaves the stored data wrong. A
@@ -29,9 +31,20 @@ import { log, metrics } from "./telemetry";
 
 const DEFAULT_INTERVAL_MS = 5_000;
 
+export interface SweepResult {
+	opened: {
+		id: string;
+		startsAt: string;
+		endsAt: string;
+		currentBid: number;
+		currentBidder: string | null;
+	}[];
+	closed: { id: string; endsAt: string }[];
+}
+
 export interface Sweeper {
-	/** Runs one pass immediately. Returns the listings it closed. */
-	sweep(): { id: string; endsAt: string }[];
+	/** Runs one pass immediately. Returns what it moved. */
+	sweep(): SweepResult;
 	stop(): void;
 }
 
@@ -43,6 +56,25 @@ export function startExpirySweeper(
 	// RETURNING lets the update report what it changed, so finding the expired
 	// rows and closing them is one statement instead of a select followed by an
 	// update — which would race with a bid landing between the two.
+	// Opening scheduled lots is the mirror image of closing expired ones, and
+	// the reason `pending` means anything: without something to make the
+	// transition, a scheduled auction would sit unbiddable forever.
+	//
+	// The bid figures come back with it so the event can carry the listing's
+	// real state rather than an assumption about it -- a scheduled lot can
+	// carry a reserve, so its opening price is not necessarily zero.
+	const openScheduled = db.prepare(`
+		UPDATE listings
+		   SET status = 'active'
+		 WHERE status = 'pending'
+		   AND starts_at <= @now
+		RETURNING id,
+		          starts_at    AS startsAt,
+		          ends_at      AS endsAt,
+		          current_bid  AS currentBid,
+		          current_bidder AS currentBidder
+	`);
+
 	const closeExpired = db.prepare(`
 		UPDATE listings
 		   SET status = 'closed'
@@ -51,10 +83,33 @@ export function startExpirySweeper(
 		RETURNING id, ends_at AS endsAt
 	`);
 
-	const sweep = () => {
+	const sweep = (): SweepResult => {
 		const startedAt = Date.now();
+		const now = new Date().toISOString();
 
-		const closed = closeExpired.all({ now: new Date().toISOString() }) as {
+		// Opening runs first, so a lot whose entire window elapsed between two
+		// sweeps still passes through active rather than being stranded as
+		// pending with an end date in the past.
+		const opened = openScheduled.all({ now }) as {
+			id: string;
+			startsAt: string;
+			endsAt: string;
+			currentBid: number;
+			currentBidder: string | null;
+		}[];
+
+		for (const listing of opened) {
+			channel.publish({
+				type: "updated",
+				listingId: listing.id,
+				status: "active",
+				endsAt: listing.endsAt,
+				currentBid: listing.currentBid,
+				currentBidder: listing.currentBidder,
+			});
+		}
+
+		const closed = closeExpired.all({ now }) as {
 			id: string;
 			endsAt: string;
 		}[];
@@ -72,6 +127,14 @@ export function startExpirySweeper(
 		// watching -- a slow sweep delays every request behind it.
 		metrics.timing("expiry.sweep", Date.now() - startedAt);
 
+		if (opened.length > 0) {
+			metrics.count("auction.opened", [], opened.length);
+			log.info("auction.opened", {
+				count: opened.length,
+				listingIds: opened.map((l) => l.id),
+			});
+		}
+
 		if (closed.length > 0) {
 			metrics.count("auction.closed", [], closed.length);
 			log.info("auction.expired", {
@@ -80,7 +143,7 @@ export function startExpirySweeper(
 			});
 		}
 
-		return closed;
+		return { opened, closed };
 	};
 
 	sweep();

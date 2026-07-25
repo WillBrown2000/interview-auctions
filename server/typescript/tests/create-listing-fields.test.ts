@@ -280,6 +280,7 @@ describe("POST /api/listings — photo upload", () => {
 				"id",
 				"imageUrl",
 				"startingPrice",
+				"startsAt",
 				"status",
 				"title",
 			]);

@@ -164,10 +164,11 @@ in filename order, each inside a transaction, with applied filenames recorded
 in a `schema_migrations` table.
 
 ```
-001_initial.sql                    listings
-002_bid_history.sql                bids
-003_listing_images.sql             listing photos, stored as blobs
+001_initial.sql                     listings
+002_bid_history.sql                 bids
+003_listing_images.sql              listing photos, stored as blobs
 004_listings_default_view_index.sql indexes for the landing page
+005_listing_starts_at.sql           start times, so `pending` means something
 ```
 
 It's about forty lines in `db.ts`. Knex or Drizzle would both do this, but the
@@ -273,7 +274,8 @@ with it.
 | `description` | optional | up to 2,000 characters |
 | `category` | optional | `tractor` `combine` `implement` `attachment`, default `implement` |
 | `startingPrice` | optional | the reserve. Bidding opens here, so the first bid must beat it. `0` means no reserve |
-| `endsAt` | optional | must be in the future and within a year. Defaults to a week out |
+| `startsAt` | optional | when bidding opens. Omitted means immediately; a future date creates the listing as `pending` |
+| `endsAt` | optional | must be in the future, after `startsAt`, and within a year. Defaults to a week after the start |
 | `image` | optional | JPEG, PNG, WebP or GIF, up to 2MB |
 
 **`id`, `currentBid`, `currentBidder` and `status` are the server's.** Values
@@ -283,7 +285,10 @@ caller who could set their own `id` could overwrite an existing listing, and
 one who could set `currentBidder` could open a lot already won.
 
 `currentBid` starts at `startingPrice`, which is what makes the reserve
-meaningful without a second column to keep in step.
+meaningful without a second column to keep in step. `status` is derived from
+the dates rather than accepted from the client, so it can never disagree with
+the schedule it describes — an "active" listing that opens next week is not a
+state the API will let you create.
 
 ### Photos
 
@@ -356,10 +361,15 @@ Events sent while a client is disconnected are gone. Rather than server-side
 replay keyed on `Last-Event-ID`, the client refetches when the stream reopens —
 one request, correct regardless of how long the gap was.
 
-### Expiry
+### Expiry and opening
 
-A sweep runs every few seconds, closing anything past its end time and
-publishing `closed`. It's a single indexed `UPDATE ... RETURNING`, not a scan or
+A sweep runs every few seconds and moves listings through their lifecycle:
+
+```
+pending --(starts_at passes)--> active --(ends_at passes)--> closed
+```
+
+Opening publishes `updated`, closing publishes `closed`. It's a single indexed `UPDATE ... RETURNING`, not a scan or
 a per-row loop, which matters because better-sqlite3 is synchronous and the
 statement occupies the event loop for its duration.
 
@@ -527,7 +537,45 @@ So I did both layers, with different jobs. The `endsAt` check in the transaction
 is what makes it correct. The sweep (added later with the realtime work) is what
 makes the stored data honest so `?status=active` means something.
 
-### 4. The seed data had gone stale
+### 4. `pending` was a status nothing could reach
+
+Not in the brief either, and not strictly a defect — but a loose end in the
+model worth pulling on. The status enum shipped as
+`active | closed | pending`, and `pending` had no producer: nothing set it,
+nothing left it, and the seed had none. The only behaviour it had was
+accidental, because the bid endpoint refuses anything that isn't `active`.
+
+The tell is that there was an `endsAt` and no `startsAt`. "Hasn't opened yet"
+is a state the model could name and never check, which is usually a sign the
+concept was declared and then not designed.
+
+I read it as the auction-house sense: catalogued and visible, bidding not open
+yet — buyers browse during a preview window and the lot opens on a schedule.
+That fits the behaviour already there and needs the least invention. The
+alternatives I weighed were "awaiting approval" (would mean the create endpoint
+is wrong, since it publishes immediately) and "sold, awaiting settlement"
+(would sit *after* closed and need buyer and payment fields).
+
+Migration `005` adds `starts_at`, and status becomes a function of the clock:
+
+```
+now < starts_at              pending
+starts_at ≤ now < ends_at    active
+now ≥ ends_at                closed
+```
+
+The expiry sweep already existed to close finished auctions, so it generalised
+from one transition to two. Opening runs before closing in the same pass, so a
+lot whose entire window elapsed between two sweeps ends up closed rather than
+stranded as pending with an end date in the past.
+
+The bid endpoint gained the mirror of its `endsAt` check — `starts_at > now` is
+refused with *"This auction has not opened yet"* — for the same reason: the
+sweep has an interval, and the stored status is only as current as the last
+pass. Existing rows were backfilled to the epoch, so nothing that was open
+became pending retroactively.
+
+### 5. The seed data had gone stale
 
 Every `endsAt` in the fixture was April 2026. It was July. So all eight listings
 had closed before anyone ran the project, and a countdown had nothing to count.

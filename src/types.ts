@@ -46,6 +46,8 @@ export interface Listing {
 	currentBid: number;
 	currentBidder: string | null;
 	status: "active" | "closed" | "pending";
+	/** When bidding opens. Before this the listing is pending. */
+	startsAt: string;
 	endsAt: string;
 	imageUrl: string;
 }

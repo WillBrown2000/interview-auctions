@@ -14,6 +14,7 @@ function listing(overrides: Partial<Listing> = {}): Listing {
 		currentBid: 100_000,
 		currentBidder: null,
 		status: "active",
+		startsAt: new Date(0).toISOString(),
 		endsAt: new Date(NOW + 60 * 60 * 1000).toISOString(),
 		imageUrl: "",
 		...overrides,
@@ -34,6 +35,7 @@ describe("hasEnded", () => {
 		// has swept still says "active" in the database.
 		const ended = listing({
 			status: "active",
+			startsAt: new Date(0).toISOString(),
 			endsAt: new Date(NOW - 1000).toISOString(),
 		});
 
@@ -45,6 +47,7 @@ describe("hasEnded", () => {
 		// though the clock has not run out.
 		const closed = listing({
 			status: "closed",
+			startsAt: new Date(0).toISOString(),
 			endsAt: new Date(NOW + 86_400_000).toISOString(),
 		});
 

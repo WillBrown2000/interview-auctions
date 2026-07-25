@@ -43,6 +43,7 @@ function listing(n: number, overrides: Partial<Listing> = {}): Listing {
 		currentBid: 10_000 * n,
 		currentBidder: null,
 		status: "active",
+		startsAt: new Date(0).toISOString(),
 		endsAt: new Date(Date.now() + n * 3_600_000).toISOString(),
 		imageUrl: "",
 		...overrides,
@@ -349,6 +350,7 @@ describe("App", () => {
 			serve([
 				listing(1, {
 					status: "closed",
+					startsAt: new Date(0).toISOString(),
 					endsAt: new Date(Date.now() - 1_000).toISOString(),
 				}),
 			]);
@@ -360,6 +362,7 @@ describe("App", () => {
 					type: "updated",
 					listingId: "listing-1",
 					status: "active",
+					startsAt: new Date(0).toISOString(),
 					endsAt: new Date(Date.now() + 60_000).toISOString(),
 					currentBid: 25_000,
 					currentBidder: null,

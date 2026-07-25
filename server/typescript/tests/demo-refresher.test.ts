@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { type Db, initDatabase } from "../db";
 import { DEMO_REFRESHER_TITLE, startDemoRefresher } from "../demo-refresher";
 import { type AuctionEvent, EventChannel } from "../events";
+import { SEED_COUNT } from "./helpers";
 
 class RecordingChannel extends EventChannel {
 	published: AuctionEvent[] = [];
@@ -264,7 +265,7 @@ describe("demo refresher", () => {
 			const others = db
 				.prepare("SELECT COUNT(*) c FROM listings WHERE title != ?")
 				.get(DEMO_REFRESHER_TITLE) as { c: number };
-			expect(others.c).toBe(8);
+			expect(others.c).toBe(SEED_COUNT);
 		} finally {
 			refresher.stop();
 			db.close();

@@ -15,6 +15,7 @@ function listing(overrides: Partial<Listing> = {}): Listing {
 		currentBid: 52_000,
 		currentBidder: "Jane Smith",
 		status: "active",
+		startsAt: new Date(0).toISOString(),
 		// Three days plus an hour: exactly three days would tick down to
 		// "2 days left" in the milliseconds before the assertion runs.
 		endsAt: new Date(Date.now() + 3 * 86_400_000 + 3_600_000).toISOString(),
@@ -92,6 +93,7 @@ describe("ListingCard", () => {
 			const { container } = show(
 				listing({
 					status: "active",
+					startsAt: new Date(0).toISOString(),
 					endsAt: new Date(Date.now() - 1_000).toISOString(),
 				}),
 			);

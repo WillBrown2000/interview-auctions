@@ -34,6 +34,11 @@ export default function CreateListingForm({ onSuccess }: Props) {
 	const [image, setImage] = useState<File | null>(null);
 	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
+	// Blank means "open immediately", which is what every listing did before
+	// there was a start time. Prefilling a future date would quietly schedule
+	// every listing somebody created without reading the field.
+	const [startsAt, setStartsAt] = useState("");
+
 	// Prefilled a week out, which is both a sensible default and a hint about
 	// what the field wants. The seller can change it.
 	const [endsAt, setEndsAt] = useState(() =>
@@ -91,6 +96,16 @@ export default function CreateListingForm({ onSuccess }: Props) {
 			return;
 		}
 
+		if (
+			startsAt &&
+			endsAt &&
+			new Date(endsAt).getTime() <= new Date(startsAt).getTime()
+		) {
+			// A window that closes before it opens is never biddable.
+			setError("End date must be after the start date.");
+			return;
+		}
+
 		setSubmitting(true);
 		try {
 			const listing = await createListing({
@@ -98,12 +113,14 @@ export default function CreateListingForm({ onSuccess }: Props) {
 				description: (data.get("description") as string).trim(),
 				category: data.get("category") as Category | "",
 				startingPrice,
+				startsAt,
 				endsAt,
 				image,
 			});
 			onSuccess(listing);
 			form.reset();
 			setImage(null);
+			setStartsAt("");
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Failed to create listing");
 		} finally {
@@ -163,6 +180,23 @@ export default function CreateListingForm({ onSuccess }: Props) {
 				/>
 				<span className="bid-form__hint">
 					Bidding opens here. 0 means no reserve.
+				</span>
+			</div>
+
+			<div className="bid-form__field">
+				<label htmlFor="startsAt">Bidding Opens</label>
+				<input
+					id="startsAt"
+					name="startsAt"
+					type="datetime-local"
+					value={startsAt}
+					min={toLocalInputValue(new Date())}
+					onChange={(e) => setStartsAt(e.target.value)}
+					disabled={submitting}
+				/>
+				<span className="bid-form__hint">
+					Leave blank to open immediately. A future date lists it as pending
+					until then.
 				</span>
 			</div>
 

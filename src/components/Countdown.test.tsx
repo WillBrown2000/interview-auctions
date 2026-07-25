@@ -19,6 +19,7 @@ function listing(msFromNow: number, overrides: Partial<Listing> = {}): Listing {
 		currentBid: 100_000,
 		currentBidder: null,
 		status: "active",
+		startsAt: new Date(0).toISOString(),
 		endsAt: new Date(Date.now() + msFromNow).toISOString(),
 		imageUrl: "",
 		...overrides,

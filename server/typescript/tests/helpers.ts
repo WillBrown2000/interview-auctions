@@ -26,7 +26,10 @@ export function api() {
  * The fixture carries endsInHours (an offset from seed time) rather than an
  * absolute endsAt, so the actual timestamp is only known once seeded.
  */
-export type SeedListing = Omit<Listing, "endsAt"> & { endsInHours: number };
+export type SeedListing = Omit<Listing, "endsAt" | "startsAt"> & {
+	endsInHours: number;
+	startsInHours: number;
+};
 
 export const seed: SeedListing[] = JSON.parse(
 	readFileSync(join(__dirname, "..", "data", "listings.json"), "utf-8"),
@@ -49,6 +52,14 @@ export const expiredListing = seed.find(
 export const closedListing = seed.find(
 	(l) => l.status === "closed",
 ) as SeedListing;
+
+/** Catalogued but not open for bidding yet. */
+export const pendingListing = seed.find(
+	(l) => l.status === "pending",
+) as SeedListing;
+
+/** How many listings the fixture holds, so tests don't hardcode it. */
+export const SEED_COUNT = seed.length;
 
 export const MISSING_ID = "00000000-0000-4000-8000-000000000000";
 

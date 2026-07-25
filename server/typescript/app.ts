@@ -26,6 +26,8 @@ export interface Listing {
 	currentBid: number;
 	currentBidder: string | null;
 	status: Status;
+	/** When bidding opens. Before this the listing is pending. */
+	startsAt: string;
 	endsAt: string;
 	imageUrl: string;
 }
@@ -49,6 +51,8 @@ interface CreateListingRequest {
 	category?: unknown;
 	/** The reserve — what bidding opens at. */
 	startingPrice?: unknown;
+	/** When bidding opens. Omitted means immediately. */
+	startsAt?: unknown;
 	endsAt?: unknown;
 }
 
@@ -69,6 +73,7 @@ interface ListingRow {
 	current_bid: number;
 	current_bidder: string | null;
 	status: Status;
+	starts_at: string;
 	ends_at: string;
 	image_url: string;
 }
@@ -91,6 +96,7 @@ function toListing(row: ListingRow): Listing {
 		currentBid: row.current_bid,
 		currentBidder: row.current_bidder,
 		status: row.status,
+		startsAt: row.starts_at,
 		endsAt: row.ends_at,
 		imageUrl: row.image_url,
 	};
@@ -137,6 +143,7 @@ class BadRequest extends HttpError {
 function reasonFor(err: HttpError): string {
 	if (err.status === 404) return "not_found";
 	if (/has ended/i.test(err.message)) return "ended";
+	if (/not opened yet/i.test(err.message)) return "not_open";
 	if (/not currently active/i.test(err.message)) return "not_active";
 	if (/greater than the current bid/i.test(err.message)) return "too_low";
 	return "other";
@@ -351,24 +358,40 @@ function buildListing(body: CreateListingRequest, hasImage: boolean): Listing {
 
 	// datetime-local sends "2026-08-01T14:30" with no zone, which Date parses
 	// as the seller's local time. That is what they meant by it.
-	let endsAt = new Date(Date.now() + DEFAULT_DURATION_MS);
-	if (body.endsAt !== undefined && body.endsAt !== "") {
-		if (typeof body.endsAt !== "string") {
-			throw new BadRequest("End date must be a date and time");
+	const parseDate = (value: unknown, name: string): Date | null => {
+		if (value === undefined || value === "") return null;
+		if (typeof value !== "string") {
+			throw new BadRequest(`${name} must be a date and time`);
 		}
-		const parsed = new Date(body.endsAt);
+		const parsed = new Date(value);
 		if (Number.isNaN(parsed.getTime())) {
-			throw new BadRequest("End date is not a valid date and time");
+			throw new BadRequest(`${name} is not a valid date and time`);
 		}
-		if (parsed.getTime() <= Date.now()) {
-			// An auction created already closed can never take a bid, which is
-			// almost certainly a typo rather than an intention.
-			throw new BadRequest("End date must be in the future");
-		}
-		if (parsed.getTime() > Date.now() + MAX_DURATION_MS) {
-			throw new BadRequest("End date must be within a year");
-		}
-		endsAt = parsed;
+		return parsed;
+	};
+
+	// Omitted means bidding opens immediately, which is what every listing did
+	// before there was a start time at all.
+	const startsAt = parseDate(body.startsAt, "Start date") ?? new Date();
+	if (startsAt.getTime() > Date.now() + MAX_DURATION_MS) {
+		throw new BadRequest("Start date must be within a year");
+	}
+
+	const endsAt =
+		parseDate(body.endsAt, "End date") ??
+		new Date(startsAt.getTime() + DEFAULT_DURATION_MS);
+
+	if (endsAt.getTime() <= Date.now()) {
+		// An auction created already closed can never take a bid, which is
+		// almost certainly a typo rather than an intention.
+		throw new BadRequest("End date must be in the future");
+	}
+	if (endsAt.getTime() > Date.now() + MAX_DURATION_MS) {
+		throw new BadRequest("End date must be within a year");
+	}
+	if (endsAt.getTime() <= startsAt.getTime()) {
+		// A window that closes before it opens is never biddable.
+		throw new BadRequest("End date must be after the start date");
 	}
 
 	return {
@@ -381,7 +404,11 @@ function buildListing(body: CreateListingRequest, hasImage: boolean): Listing {
 		// here rather than accepted from the client for the same reason id is.
 		currentBid: startingPrice,
 		currentBidder: null,
-		status: "active",
+		// Scheduled for later means pending; the sweep opens it when the time
+		// comes. Derived from the dates rather than accepted from the client,
+		// so the status can never disagree with the schedule it describes.
+		status: startsAt.getTime() > Date.now() ? "pending" : "active",
+		startsAt: startsAt.toISOString(),
 		endsAt: endsAt.toISOString(),
 		// Points at the endpoint that streams the blob back. Assigned here so the
 		// id is generated once and both the row and the URL agree on it.
@@ -443,10 +470,10 @@ export function createApp(db: Db, channel: EventChannel = new EventChannel()) {
 	const insertListing = db.prepare(`
 		INSERT INTO listings (
 			id, title, description, category, starting_price,
-			current_bid, current_bidder, status, ends_at, image_url
+			current_bid, current_bidder, status, starts_at, ends_at, image_url
 		) VALUES (
 			@id, @title, @description, @category, @startingPrice,
-			@currentBid, @currentBidder, @status, @endsAt, @imageUrl
+			@currentBid, @currentBidder, @status, @startsAt, @endsAt, @imageUrl
 		)
 	`);
 	const updateCurrentBid = db.prepare(
@@ -511,14 +538,18 @@ export function createApp(db: Db, channel: EventChannel = new EventChannel()) {
 				throw new BadRequest("This listing is not currently active");
 			}
 
-			// Status is a stored field that something has to write; ends_at is
-			// the actual contract with the bidder. Between an auction ending and
-			// anything noticing, a listing sits marked active with its end time
-			// in the past -- so the timestamp has to be checked directly rather
-			// than trusting status to have been swept.
+			// Status is a stored field that something has to write; the
+			// timestamps are the actual contract with the bidder. Between an
+			// auction ending and anything noticing, a listing sits marked active
+			// with its end time in the past -- so the timestamps get checked
+			// directly rather than trusting status to have been swept.
 			//
 			// Read inside the transaction, alongside the bid comparison, so a
-			// bid can't slip past an expiry that lands mid-request.
+			// bid can't slip past a transition that lands mid-request.
+			if (Date.parse(row.starts_at) > Date.now()) {
+				throw new BadRequest("This auction has not opened yet");
+			}
+
 			if (Date.parse(row.ends_at) <= Date.now()) {
 				throw new BadRequest("This auction has ended");
 			}

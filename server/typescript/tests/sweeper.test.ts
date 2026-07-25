@@ -117,7 +117,7 @@ describe("expiry sweeper", () => {
 			).id;
 
 			setEndsAt(db, target, -1);
-			const closed = sweeper.sweep();
+			const { closed } = sweeper.sweep();
 
 			expect(closed.map((l) => l.id)).toContain(target);
 			const row = db

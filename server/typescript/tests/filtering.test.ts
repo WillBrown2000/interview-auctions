@@ -25,6 +25,14 @@ describe("GET /api/listings — filtering", () => {
 	});
 
 	describe("status", () => {
+		it("returns pending listings", async () => {
+			// `pending` means catalogued but not open for bidding yet.
+			const { data, pagination } = await fetchListings("status=pending");
+
+			expect(pagination.totalItems).toBeGreaterThan(0);
+			expect(data.every((l) => l.status === "pending")).toBe(true);
+		});
+
 		it("returns only active listings", async () => {
 			const { data, pagination } = await fetchListings(
 				"status=active&pageSize=100",
@@ -36,10 +44,14 @@ describe("GET /api/listings — filtering", () => {
 			);
 		});
 
-		it("returns an empty result for a valid status nothing matches", async () => {
-			// "pending" is a legal status with no seeded rows. A filter that
-			// matches nothing is a successful request, not an error.
-			const { data, pagination } = await fetchListings("status=pending");
+		it("returns an empty result for a valid combination nothing matches", async () => {
+			// Every filter here is legal and every value exists on its own; the
+			// combination just has no rows. Chosen so adding a fixture listing
+			// can't accidentally satisfy it -- an earlier version paired two
+			// enums and started matching the moment a pending combine was added.
+			const { data, pagination } = await fetchListings(
+				"status=pending&minPrice=99999999",
+			);
 
 			expect(data).toEqual([]);
 			expect(pagination.totalItems).toBe(0);

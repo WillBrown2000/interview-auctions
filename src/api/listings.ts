@@ -41,6 +41,7 @@ export interface NewListing {
 	/** The reserve — what bidding opens at. */
 	startingPrice?: string;
 	/** Local datetime from the form; the server treats it as the seller's zone. */
+	startsAt?: string;
 	endsAt?: string;
 	image?: File | null;
 }
@@ -56,6 +57,7 @@ export async function createListing(data: NewListing): Promise<Listing> {
 		"description",
 		"category",
 		"startingPrice",
+		"startsAt",
 		"endsAt",
 	] as const) {
 		const value = data[key];

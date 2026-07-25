@@ -34,15 +34,22 @@ describe("GET /api/listings — pagination", () => {
 		});
 
 		it("returns a partial final page", async () => {
-			// 8 items at 3 per page: the last page holds 2.
-			const { data, pagination } = await fetchListings("page=3&pageSize=3");
+			// Derived rather than hardcoded: the fixture grows, and a test that
+			// assumes which page is last starts failing for the wrong reason.
+			const pageSize = 3;
+			const lastPage = Math.ceil(TOTAL / pageSize);
+			const remainder = TOTAL % pageSize;
 
-			expect(data).toHaveLength(TOTAL - 6);
+			const { data, pagination } = await fetchListings(
+				`page=${lastPage}&pageSize=${pageSize}`,
+			);
+
+			expect(data).toHaveLength(remainder === 0 ? pageSize : remainder);
 			expect(pagination.hasMore).toBe(false);
 		});
 
 		it("reports the correct totals on every page", async () => {
-			for (const page of [1, 2, 3]) {
+			for (let page = 1; page <= Math.ceil(TOTAL / 3); page++) {
 				const { pagination } = await fetchListings(`page=${page}&pageSize=3`);
 				expect(pagination.totalItems).toBe(TOTAL);
 				expect(pagination.totalPages).toBe(Math.ceil(TOTAL / 3));
@@ -50,15 +57,15 @@ describe("GET /api/listings — pagination", () => {
 		});
 
 		it("sets hasMore true on every page but the last", async () => {
-			expect(
-				(await fetchListings("page=1&pageSize=3")).pagination.hasMore,
-			).toBe(true);
-			expect(
-				(await fetchListings("page=2&pageSize=3")).pagination.hasMore,
-			).toBe(true);
-			expect(
-				(await fetchListings("page=3&pageSize=3")).pagination.hasMore,
-			).toBe(false);
+			const pageSize = 3;
+			const lastPage = Math.ceil(TOTAL / pageSize);
+
+			for (let page = 1; page <= lastPage; page++) {
+				const { pagination } = await fetchListings(
+					`page=${page}&pageSize=${pageSize}`,
+				);
+				expect(pagination.hasMore).toBe(page < lastPage);
+			}
 		});
 
 		it("returns an empty page rather than a 404 past the end", async () => {

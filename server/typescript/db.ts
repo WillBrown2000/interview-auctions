@@ -103,6 +103,8 @@ interface SeedListing {
 	 * countdown had nothing to count. An offset is correct whenever it's run.
 	 */
 	endsInHours: number;
+	/** Hours from seed time until bidding opens. 0 means already open. */
+	startsInHours: number;
 	imageUrl: string;
 }
 
@@ -130,19 +132,22 @@ export function seedIfEmpty(
 	const insert = db.prepare(`
 		INSERT INTO listings (
 			id, title, description, category, starting_price,
-			current_bid, current_bidder, status, ends_at, image_url
+			current_bid, current_bidder, status, starts_at, ends_at, image_url
 		) VALUES (
 			@id, @title, @description, @category, @startingPrice,
-			@currentBid, @currentBidder, @status, @endsAt, @imageUrl
+			@currentBid, @currentBidder, @status, @startsAt, @endsAt, @imageUrl
 		)
 	`);
 
 	const now = Date.now();
 
 	db.transaction((rows: SeedListing[]) => {
-		for (const { endsInHours, ...row } of rows) {
+		for (const { endsInHours, startsInHours, ...row } of rows) {
 			insert.run({
 				...row,
+				startsAt: new Date(
+					now + (startsInHours ?? 0) * 60 * 60 * 1000,
+				).toISOString(),
 				endsAt: new Date(now + endsInHours * 60 * 60 * 1000).toISOString(),
 			});
 		}

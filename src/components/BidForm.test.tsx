@@ -13,6 +13,7 @@ const listing: Listing = {
 	currentBid: 50_000,
 	currentBidder: null,
 	status: "active",
+	startsAt: new Date(0).toISOString(),
 	endsAt: new Date(Date.now() + 86_400_000).toISOString(),
 	imageUrl: "",
 };

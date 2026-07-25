@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { api } from "./helpers";
+import { SEED_COUNT, api } from "./helpers";
 
 /**
  * The create endpoint shipped with the project and was never covered.
@@ -103,7 +103,7 @@ describe("POST /api/listings", () => {
 		await app.post("/api/listings").send({ title: "Countable" }).expect(201);
 
 		const res = await app.get("/api/listings?pageSize=100").expect(200);
-		expect(res.body.pagination.totalItems).toBe(9);
+		expect(res.body.pagination.totalItems).toBe(SEED_COUNT + 1);
 		expect(
 			res.body.data.some((l: { title: string }) => l.title === "Countable"),
 		).toBe(true);

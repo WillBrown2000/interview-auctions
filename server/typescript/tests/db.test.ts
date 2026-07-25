@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { readdirSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { initDatabase, migrate, openDatabase, seedIfEmpty } from "../db";
+import { SEED_COUNT } from "./helpers";
 
 /** The migrations on disk, in the order they are applied. */
 function migrationFiles(): string[] {
@@ -142,7 +143,7 @@ describe("migrate", () => {
 		expect(
 			(second.prepare("SELECT COUNT(*) c FROM listings").get() as { c: number })
 				.c,
-		).toBe(8);
+		).toBe(SEED_COUNT);
 		second.close();
 	});
 });
@@ -155,7 +156,7 @@ describe("seedIfEmpty", () => {
 
 		expect(
 			(db.prepare("SELECT COUNT(*) c FROM listings").get() as { c: number }).c,
-		).toBe(8);
+		).toBe(SEED_COUNT);
 		db.close();
 	});
 
@@ -170,7 +171,7 @@ describe("seedIfEmpty", () => {
 		expect(messages).toHaveLength(0);
 		expect(
 			(db.prepare("SELECT COUNT(*) c FROM listings").get() as { c: number }).c,
-		).toBe(8);
+		).toBe(SEED_COUNT);
 		db.close();
 	});
 
@@ -182,7 +183,7 @@ describe("seedIfEmpty", () => {
 			ends_at: string;
 		}[];
 
-		expect(rows).toHaveLength(8);
+		expect(rows).toHaveLength(SEED_COUNT);
 		for (const row of rows) {
 			expect(Number.isNaN(Date.parse(row.ends_at))).toBe(false);
 		}
